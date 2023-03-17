@@ -4,13 +4,68 @@
 
 # DearPyGUI for GUI, OpenCV for video capture, NumPy for calculations,
 #PySerial for communication with machine, EXDXF for creating DXF drawings, sys for clean exit
+# list of the module name to replace : numpy - dearpygui - pyserial - opencv-python - ezdxf - serial-tool - pygame - pyinstaller (for compiling the script) - 
 import dearpygui.dearpygui as dpg
 import cv2 as cv
 import numpy as np
 import serial
 import serial.tools.list_ports
 import ezdxf
+import pygame
 import sys
+
+# Chapter for selecting the camera
+# Get a list of available cameras
+camera_list = []
+for i in range(6):
+    cap = cv.VideoCapture(i)
+    
+    if cap.read()[0]:
+         camera_list.append(i)
+    cap.release()
+
+# Prompt the user to select a camera
+if not camera_list:
+    print("No cameras found!")
+else:
+    print("Available cameras:")
+    for i, camera in enumerate(camera_list):
+        print(f"{i+1}. Camera {camera}")
+    selected_camera = int(input("Select a camera (1-{}): ".format(len(camera_list))))
+
+    # Open the selected camera
+    cap = cv.VideoCapture(camera_list[selected_camera-1])
+
+    # Display the live video stream
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error reading frame!")
+            break
+
+        # Resize the frame to 800x600
+        frame = cv.resize(frame, (800, 600))
+
+        # Display text in the top right corner
+        text = "Press q to validate this cam"
+        org = (50, 50)
+        font = cv.FONT_HERSHEY_SIMPLEX
+        font_scale = 1
+        color = (255, 255, 255)
+        thickness = 2
+        cv.putText(frame, text, org, font, font_scale, color, thickness, cv.LINE_AA)
+
+        # Display the frame
+        cv.imshow('Camera', frame)
+
+        # Wait for user input (q to exit)
+        if cv.waitKey(1) == ord('q'):
+            break
+
+    # Release the camera and close the window
+    cap.release()
+    cv.destroyAllWindows()
+# END Chapter for selecting the camera
 
 doc = ezdxf.new(dxfversion="R2010") #create new DXF drawing
 doc.layers.add("COMPARATRON_OUTPUT", color=2) #add layer for our drawing
@@ -139,9 +194,9 @@ def jog_z_neg(): #move Z axis down by the set amount
     ser_in = ser.readline()
     print(ser_in)
     
-def fast_feed(): #set feedrate to 1000 for quick movement
+def fast_feed(): #set feedrate to 2000 for quick movement
     global ser #to use the same object we already created
-    ser.write(b'F1000\r')
+    ser.write(b'F2000\r')
     ser_in = ser.readline()
     print(ser_in)
     
@@ -241,7 +296,18 @@ with dpg.window(label="Created Plot", pos=(frame_width+55, 20), width=700, heigh
 dpg.show_viewport() #renders the DearPyGUI viewport
 dpg.maximize_viewport() #maximizes the window
 while dpg.is_dearpygui_running(): #DearPyGUI render loop
-
+    
+    for event in pygame.event.get():
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                jog_x_neg()
+            elif event.key == pygame.K_RIGHT:
+                jog_x_pos()
+            elif event.key == pygame.K_UP:
+                jog_y_pos()
+            elif event.key == pygame.K_DOWN:
+                jog_y_neg()
+            
     if vid.isOpened():
         ret, frame = vid.read()
         cv.drawMarker(frame, (target_x, target_y), (0, 0, 255), cv.MARKER_CROSS, 10, 1)
