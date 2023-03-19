@@ -1,18 +1,20 @@
-# Comparatron V1.0
-# by Cameron Coward
+4# Comparatron V1.01
+# by Cameron Coward 
+# fork by RGP
 # http://www.cameroncoward.com
+# Manually install the different modules using "python -m pip install _modulenamelistedbelow_""
+# list of the module name to replace : numpy - dearpygui - pyserial - opencv-python - ezdxf - serial-tool - pyinstaller (for compiling the script) - 
 
 # DearPyGUI for GUI, OpenCV for video capture, NumPy for calculations,
-#PySerial for communication with machine, EXDXF for creating DXF drawings, sys for clean exit
-# list of the module name to replace : numpy - dearpygui - pyserial - opencv-python - ezdxf - serial-tool - pygame - pyinstaller (for compiling the script) - 
+#PySerial for communication with machine, EZDXF for creating DXF drawings, sys for clean exit
 import dearpygui.dearpygui as dpg
 import cv2 as cv
 import numpy as np
 import serial
 import serial.tools.list_ports
 import ezdxf
-import pygame
 import sys
+from math import sqrt
 
 # Chapter for selecting the camera
 # Get a list of available cameras
@@ -78,7 +80,7 @@ dpg.create_context() #create DearPyGUI object
 dpg.create_viewport(title='Comparatron by Cameron Coward', width=1280, height=720) #main program window
 dpg.setup_dearpygui() #setup DearPyGUI
 
-vid = cv.VideoCapture(0) #create OpenCV object with first video feed available
+vid = cv.VideoCapture(camera_list[selected_camera-1]) #create OpenCV object with first video feed available
 ret, frame = vid.read() #pull frame from video feed
 
 # get the video parameters
@@ -95,14 +97,18 @@ data = data.ravel()  # flatten camera data to 1D
 data = np.asfarray(data, dtype='f')  # change data type to 32bit floats
 texture_data = np.true_divide(data, 255.0)  # normalize image data to prepare for GPU
 
+prev_point_x = float(0) #set the historical point to 0
+prev_point_y = float(0) #set the historical point to 0
+difference_x = float(0) #set the historical point to 0
+difference_y = float(0) #set the historical point to 0
+difference_distance = float(0)
+
 def connect_to_com(): #connect to the COM port specified by user
     global ser #to use the same object we already created
     com_port_full = str((dpg.get_value("port_selection"))) #pull COM port selection as a string
     com_port = com_port_full.split(' ') #split at " " so first string is just the COM port
     print("Trying to connect to:", com_port[0])
     ser = serial.Serial(com_port[0], 115200, bytesize=8, parity='N', stopbits=1, timeout=None, xonxoff=1, rtscts=0) #connect to COM port
-    ser_in = ser.readline() #listen for connection status from machine
-    print(ser_in)
     ser_in = ser.readline() #listen for connection status from machine
     print(ser_in)
 
@@ -213,13 +219,17 @@ def create_new_point():
     print(coords[1]) #second split is Y coordinates
     point_x = float(coords[0]) #convert X coordinate string to float
     point_y = float(coords[1]) #convert Y coordinate string to float
+    if prev_point_x != float(0) and prev_point_y != float(0):
+        difference_x = point_x - prev_point_x #calculate the difference in x
+        difference_y = point_y - prev_point_y #calculate the difference in y
+        difference_distance = sqrt((difference_x * difference_x) + (difference_y * difference_y)) #calculate the distance using pythagorean theorem
+    prev_point_x = point_x #store the actual position for a delta calcul
+    prev_point_y = point_y #store the actual position for a delta calcul
     global msp #to use the same modelspace we already created
     msp.add_point((point_x,point_y), dxfattribs={"color": 7}) #create a point in the DXF at the coordinates
     draw_x = 5 + int(3 * point_x) #scale coordinate for use in the DearPyGUI drawing plot
     draw_y = 5 + int(-3 * point_y) #scale coordinate for use in the DearPyGUI drawing plot
     dpg.draw_circle(center=(draw_x, draw_y), radius=1, color=(255, 0, 0, 255), thickness=1, parent="plot") #add a circle to the DearPyGUI drawing plot at coordinates
-    ser_in = ser.readline()
-    print(ser_in)
     
 def export_dxf_now(): #save the ongoing DXF file as the filename set by the user
     dxf_filename = (dpg.get_value("dxf_name"))
@@ -240,6 +250,21 @@ def close_ser_now(): #close the serial connection to the machine, allowing for a
     dpg.destroy_context()
     print("Destroyed DearPyGUI context")
     sys.exit()
+
+def on_key_press_left(sender, app_data, user_data):
+    jog_x_neg()
+
+def on_key_press_right(sender, app_data, user_data):
+    jog_x_pos()
+
+def on_key_press_up(sender, app_data, user_data):
+    jog_y_pos()
+
+def on_key_press_down(sender, app_data, user_data):
+    jog_y_neg()
+
+def on_key_press_space(sender, app_data, user_data):
+    create_new_point()
 
 with dpg.texture_registry(show=False): #creates a "texture" of the video feed so we can display it
     dpg.add_raw_texture(frame.shape[1], frame.shape[0], texture_data, tag="texture_tag", format=dpg.mvFormat_Float_rgb)
@@ -277,6 +302,7 @@ with dpg.window(label="Draw", pos=(460,frame_height+80), width=215, height=200, 
     dpg.add_text("Add a new point at")
     dpg.add_text("the current coordinates:")
     dpg.add_button(tag="new_point", label="New Point", width=80, height=40, callback=create_new_point)
+
     
 with dpg.window(label="DXF Output", pos=(460,frame_height+300), width=215, height=200, no_close=True): #window with DXF export controls
     dpg.add_text("Enter a filename")
@@ -296,18 +322,7 @@ with dpg.window(label="Created Plot", pos=(frame_width+55, 20), width=700, heigh
 dpg.show_viewport() #renders the DearPyGUI viewport
 dpg.maximize_viewport() #maximizes the window
 while dpg.is_dearpygui_running(): #DearPyGUI render loop
-    
-    for event in pygame.event.get():
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_LEFT:
-                jog_x_neg()
-            elif event.key == pygame.K_RIGHT:
-                jog_x_pos()
-            elif event.key == pygame.K_UP:
-                jog_y_pos()
-            elif event.key == pygame.K_DOWN:
-                jog_y_neg()
-            
+  
     if vid.isOpened():
         ret, frame = vid.read()
         cv.drawMarker(frame, (target_x, target_y), (0, 0, 255), cv.MARKER_CROSS, 10, 1)
@@ -316,7 +331,9 @@ while dpg.is_dearpygui_running(): #DearPyGUI render loop
         data = np.asfarray(data, dtype='f')
         texture_data = np.true_divide(data, 255.0)
         dpg.set_value("texture_tag", texture_data)
+
         # DearPyGUI framerate is tied to video feed framerate in this loop
+        
     
     dpg.render_dearpygui_frame()
 
