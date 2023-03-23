@@ -271,7 +271,6 @@ def create_new_point():
                 print("Error while processing motor position:", ser_str)
 
         ser_str = ser_str.removeprefix('<Idle|WPos:') #remove everything before the first (X) coordinate
-        ser_str = ser_str.removesuffix('|FS')
         print(ser_str)
         coords = ser_str.split(',') #split the rest of the string by commas
         print(coords[0]) #first split is X coordinates
