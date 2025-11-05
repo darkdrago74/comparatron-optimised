@@ -1,5 +1,10 @@
-# comparatron
+# comparatron v1.1
 Comparatron - a DIY digital optical comparator
+Improvement with Qwen3 coder
+
+```bash
+git clone https://github.com/darkdrago74/comparatron-optimised.git
+```
 
 ![Comparatron](./comparatron1.jpg)
 
