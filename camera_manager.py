@@ -26,30 +26,37 @@ def find_available_cameras(max_cameras=6):
         try:
             cap = cv.VideoCapture(i)
             if cap.isOpened():
-                ret = cap.read()[0]
-                if ret:
+                ret, frame = cap.read()
+                if ret and frame is not None and frame.size > 0:
                     available_cameras.append(i)
-                    logging.info(f"Found camera at index {i}")
+                    logging.info(f"Found working camera at index {i}")
+                    cap.release()
                 else:
-                    logging.debug(f"Camera at index {i} opened but failed to read frame")
-                cap.release()
+                    logging.debug(f"Camera at index {i} opened but failed to read frame or frame is empty")
+                    cap.release()
             else:
-                # Try using CAP_DSHOW backend for Windows systems
+                # Try using CAP_V4L2 backend for Linux systems (if supported)
                 try:
-                    cap = cv.VideoCapture(i, cv.CAP_DSHOW)
+                    cap = cv.VideoCapture(i, cv.CAP_V4L2)
                     if cap.isOpened():
-                        ret = cap.read()[0]
-                        if ret:
+                        ret, frame = cap.read()
+                        if ret and frame is not None and frame.size > 0:
                             available_cameras.append(i)
-                            logging.info(f"Found camera at index {i} using DSHOW backend")
+                            logging.info(f"Found camera at index {i} using V4L2 backend")
                         else:
-                            logging.debug(f"Camera at index {i} (DSHOW) opened but failed to read frame")
+                            logging.debug(f"Camera at index {i} (V4L2) opened but failed to read frame or frame is empty")
                         cap.release()
+                    else:
+                        logging.debug(f"Could not open camera {i} with V4L2 backend")
                 except:
-                    # DSHOW backend not available (e.g., on Linux)
-                    logging.debug(f"DSHOW backend not available for camera index {i}")
+                    # V4L2 backend not available or applicable
+                    logging.debug(f"V4L2 backend not available for camera index {i}")
         except Exception as e:
             logging.warning(f"Error accessing camera index {i}: {e}")
+            try:
+                cap.release()  # Attempt to release if it was created
+            except:
+                pass
     return available_cameras
 
 
@@ -158,12 +165,37 @@ def initialize_camera(camera_index):
     Returns:
         VideoCapture: OpenCV VideoCapture object or None if failed
     """
+    # First try default backend
     cap = cv.VideoCapture(camera_index)
     if cap.isOpened():
-        return cap
-    else:
-        print(f"Failed to initialize camera {camera_index}")
-        return None
+        ret, frame = cap.read()
+        if ret and frame is not None and frame.size > 0:
+            logging.info(f"Successfully initialized camera {camera_index}")
+            return cap
+        else:
+            logging.warning(f"Camera {camera_index} opened but could not read frame - may be a permission issue")
+            cap.release()
+    
+    # Try V4L2 backend specifically for Linux
+    try:
+        cap = cv.VideoCapture(camera_index, cv.CAP_V4L2)
+        if cap.isOpened():
+            ret, frame = cap.read()
+            if ret and frame is not None and frame.size > 0:
+                logging.info(f"Successfully initialized camera {camera_index} using V4L2 backend")
+                return cap
+            else:
+                logging.warning(f"Camera {camera_index} with V4L2 backend opened but could not read frame")
+                cap.release()
+    except:
+        logging.debug(f"V4L2 backend not available for camera {camera_index}")
+    
+    # If both attempts failed, provide a more informative error
+    print(f"Failed to initialize camera {camera_index}")
+    print("This might be due to permission issues. Try adding your user to the video group:")
+    print("  sudo usermod -a -G video $USER")
+    print("Then log out and log back in, or run this script with appropriate permissions.")
+    return None
 
 
 if __name__ == "__main__":
