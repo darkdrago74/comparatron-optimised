@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Comparatron - Web Interface</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .main-layout {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .column {
+            flex: 1;
+            min-width: 300px;
+        }
+        .panel {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .panel h3 {
+            margin-top: 0;
+            color: #444;
+        }
+        .camera-view {
+            text-align: center;
+        }
+        #videoFeed {
+            max-width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .jog-panel {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 10px;
+            height: 200px;
+            position: relative;
+        }
+        .jog-btn {
+            padding: 10px;
+            font-size: 16px;
+        }
+        .x-neg { grid-area: 2 / 1 / 3 / 2; }
+        .x-pos { grid-area: 2 / 3 / 3 / 4; }
+        .y-pos { grid-area: 1 / 2 / 2 / 3; }
+        .y-neg { grid-area: 3 / 2 / 4 / 3; }
+        .z-controls { 
+            grid-area: 2 / 2 / 3 / 3; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .btn-danger {
+            background-color: #f44336;
+        }
+        .btn-danger:hover {
+            background-color: #da190b;
+        }
+        .btn-warning {
+            background-color: #ff9800;
+        }
+        .btn-warning:hover {
+            background-color: #e68900;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 10px;
+            align-items: center;
+        }
+        input, select {
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .status-panel {
+            background-color: #e8f5e8;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .plot-panel {
+            text-align: center;
+            margin-top: 20px;
+        }
+        #plotCanvas {
+            border: 1px solid #ccc;
+            background-color: #fff;
+        }
+        .points-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        .points-list table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .points-list th, .points-list td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        .points-list th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Comparatron - Web Interface</h1>
+        
+        <div class="main-layout">
+            <div class="column">
+                <div class="panel camera-view">
+                    <h3>Microscope View</h3>
+                    <img id="videoFeed" src="/video_feed" alt="Camera Feed">
+                </div>
+                
+                <div class="panel plot-panel">
+                    <h3>Recorded Points Visualization</h3>
+                    <canvas id="plotCanvas" width="600" height="400"></canvas>
+                    <div class="points-list">
+                        <h4>Recorded Points:</h4>
+                        <table id="pointsTable">
+                            <thead>
+                                <tr>
+                                    <th>Index</th>
+                                    <th>X (mm)</th>
+                                    <th>Y (mm)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pointsTableBody">
+                                <!-- Points will be added here dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="column">
+                <div class="panel">
+                    <h3>Camera Setup</h3>
+                    <div class="grid-container">
+                        <div>Available Cameras:</div>
+                        <select id="cameraSelect">
+                            <option value="">Select Camera</option>
+                        </select>
+                        <div></div>
+                        <button class="btn" onclick="initializeCamera()">Initialize Camera</button>
+                    </div>
+                </div>
+                
+                <div class="panel">
+                    <h3>Jog Controls</h3>
+                    <div class="grid-container">
+                        <div>Jog Distance (mm):</div>
+                        <select id="jogDistance">
+                            <option value="0.01">0.01</option>
+                            <option value="0.10">0.10</option>
+                            <option value="1.00">1.00</option>
+                            <option value="10.00" selected>10.00</option>
+                            <option value="50.00">50.00</option>
+                        </select>
+                    </div>
+                    
+                    <div class="jog-panel">
+                        <button class="btn jog-btn y-pos" onclick="jog('y', 'positive')">Y+</button>
+                        <button class="btn jog-btn x-neg" onclick="jog('x', 'negative')">X-</button>
+                        <button class="btn jog-btn x-pos" onclick="jog('x', 'positive')">X+</button>
+                        <div class="btn jog-btn z-controls">
+                            <button class="btn" style="display:block; width:100%; margin-bottom:5px;" onclick="jog('z', 'positive')">Z+</button>
+                            <button class="btn" style="display:block; width:100%;" onclick="jog('z', 'negative')">Z-</button>
+                        </div>
+                        <button class="btn jog-btn y-neg" onclick="jog('y', 'negative')">Y-</button>
+                    </div>
+                    
+                    <div>
+                        <button class="btn btn-warning" onclick="setFeedRate('fast')">Fast Feed (1000)</button>
+                        <button class="btn btn-warning" onclick="setFeedRate('slow')">Slow Feed (200)</button>
+                    </div>
+                </div>
+                
+                <div class="panel">
+                    <h3>Point Recording</h3>
+                    <div class="grid-container">
+                        <div>Difference X:</div>
+                        <div id="diffX">0.00</div>
+                        <div>Difference Y:</div>
+                        <div id="diffY">0.00</div>
+                        <div>Distance:</div>
+                        <div id="distance">0.00</div>
+                    </div>
+                    <button class="btn" onclick="createPoint()">Create New Point</button>
+                </div>
+                
+                <div class="panel">
+                    <h3>Serial Connection</h3>
+                    <div class="grid-container">
+                        <div>Available Ports:</div>
+                        <select id="portSelect">
+                            <option value="">Select Port</option>
+                        </select>
+                        <div></div>
+                        <button class="btn" onclick="connectSerial()">Connect</button>
+                    </div>
+                </div>
+                
+                <div class="panel">
+                    <h3>Machine Controls</h3>
+                    <button class="btn" onclick="machineControl('home')">Home ($H)</button>
+                    <button class="btn" onclick="machineControl('unlock')">Unlock ($X)</button>
+                    <button class="btn" onclick="machineControl('set_feed')">Set Feed (F2000)</button>
+                    <button class="btn" onclick="machineControl('set_origin')">Set Origin (G92X0Y0)</button>
+                    <button class="btn" onclick="machineControl('set_relative')">Set Relative (G91)</button>
+                </div>
+                
+                <div class="panel">
+                    <h3>DXF Export</h3>
+                    <div class="grid-container">
+                        <div>Filename:</div>
+                        <input type="text" id="dxfFilename" value="comparatron.dxf">
+                        <div></div>
+                        <button class="btn" onclick="exportDXF()">Export DXF</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let recordedPoints = [];
+        let canvas = document.getElementById('plotCanvas');
+        let ctx = canvas.getContext('2d');
+        
+        // Load available cameras
+        fetch('/api/cameras')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('cameraSelect');
+                select.innerHTML = '<option value="">Select Camera</option>';
+                data.forEach(cam => {
+                    const option = document.createElement('option');
+                    option.value = cam;
+                    option.textContent = `Camera ${cam}`;
+                    select.appendChild(option);
+                });
+            });
+        
+        // Load available ports
+        fetch('/api/ports')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('portSelect');
+                select.innerHTML = '<option value="">Select Port</option>';
+                data.forEach(port => {
+                    const option = document.createElement('option');
+                    option.value = port;
+                    option.textContent = port;
+                    select.appendChild(option);
+                });
+            });
+        
+        // Update status periodically
+        setInterval(() => {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('diffX').textContent = data.difference_x.toFixed(2);
+                    document.getElementById('diffY').textContent = data.difference_y.toFixed(2);
+                    document.getElementById('distance').textContent = data.difference_distance.toFixed(2);
+                });
+        }, 1000);
+        
+        function initializeCamera() {
+            const cameraSelect = document.getElementById('cameraSelect');
+            if (cameraSelect.value === '') {
+                alert('Please select a camera');
+                return;
+            }
+            
+            fetch('/api/initialize_camera', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    camera_index: parseInt(cameraSelect.value)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error initializing camera');
+            });
+        }
+        
+        function connectSerial() {
+            const portSelect = document.getElementById('portSelect');
+            if (portSelect.value === '') {
+                alert('Please select a port');
+                return;
+            }
+            
+            fetch('/api/connect_serial', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    port_name: portSelect.value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error connecting to serial');
+            });
+        }
+        
+        function jog(axis, direction) {
+            const distance = document.getElementById('jogDistance').value;
+            
+            fetch('/api/jog', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    axis: axis,
+                    direction: direction,
+                    distance: parseFloat(distance)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Jog command sent:', data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+        
+        function setFeedRate(rateType) {
+            fetch('/api/feed_rate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rate_type: rateType
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Feed rate set:', data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+        
+        function machineControl(command) {
+            fetch('/api/machine_control', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    command: command
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Machine control:', data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+        
+        function createPoint() {
+            fetch('/api/create_point', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Add point to the recorded points list
+                    const point = data.point;
+                    recordedPoints.push({x: point.x, y: point.y});
+                    
+                    // Update the points table
+                    updatePointsTable();
+                    
+                    // Redraw the plot
+                    drawPlot();
+                    
+                    alert(`Point recorded: (${point.x.toFixed(2)}, ${point.y.toFixed(2)})`);
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error creating point');
+            });
+        }
+        
+        function updatePointsTable() {
+            const tbody = document.getElementById('pointsTableBody');
+            tbody.innerHTML = '';
+            
+            recordedPoints.forEach((point, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${point.x.toFixed(2)}</td>
+                    <td>${point.y.toFixed(2)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function drawPlot() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            ctx.strokeStyle = '#eee';
+            ctx.lineWidth = 1;
+            
+            // Draw horizontal grid lines
+            for (let y = 0; y <= canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Draw vertical grid lines
+            for (let x = 0; x <= canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Draw origin axes
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 2;
+            
+            // Find the center of the canvas 
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            // Draw X and Y axes
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(canvas.width, centerY);
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, canvas.height);
+            ctx.stroke();
+            
+            // Draw axis labels
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Arial';
+            ctx.fillText('X', canvas.width - 20, centerY - 10);
+            ctx.fillText('Y', centerX + 10, 20);
+            
+            // Draw recorded points if any exist
+            if (recordedPoints.length > 0) {
+                // Calculate scale based on the range of points to fit in canvas
+                let minX = Math.min(...recordedPoints.map(p => p.x));
+                let maxX = Math.max(...recordedPoints.map(p => p.x));
+                let minY = Math.min(...recordedPoints.map(p => p.y));
+                let maxY = Math.max(...recordedPoints.map(p => p.y));
+                
+                const rangeX = maxX - minX;
+                const rangeY = maxY - minY;
+                
+                // Determine scale factors to fit points in the canvas (leaving 20px margin)
+                const scaleX = rangeX > 0 ? (canvas.width - 40) / rangeX : 1;
+                const scaleY = rangeY > 0 ? (canvas.height - 40) / rangeY : 1;
+                
+                // Use the smaller scale to ensure all points fit
+                const scale = Math.min(scaleX, scaleY) * 0.8; // Reduce slightly to add padding
+                
+                // Draw each point
+                ctx.fillStyle = '#ff0000';
+                for (let i = 0; i < recordedPoints.length; i++) {
+                    const point = recordedPoints[i];
+                    
+                    // Scale the coordinates (with margin for visibility)
+                    let x = (point.x - minX) * scale + 20;
+                    let y = canvas.height - ((point.y - minY) * scale + 20); // Flip Y axis to match traditional graph
+                    
+                    // Draw the point
+                    ctx.beginPath();
+                    ctx.arc(x, y, 4, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    // Draw point number
+                    ctx.fillStyle = '#000';
+                    ctx.font = '10px Arial';
+                    ctx.fillText(i + 1, x + 6, y - 6);
+                    ctx.fillStyle = '#ff0000'; // Reset color
+                }
+            } else {
+                // Draw a message if no points are recorded yet
+                ctx.fillStyle = '#888';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('No points recorded yet', canvas.width / 2, canvas.height / 2);
+                ctx.textAlign = 'left';
+            }
+        }
+        
+        // Initialize the plot when the page loads
+        window.onload = function() {
+            drawPlot();
+        };
+        
+        function exportDXF() {
+            const filename = document.getElementById('dxfFilename').value;
+            
+            fetch('/api/export_dxf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    filename: filename
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error exporting DXF');
+            });
+        }
+    </script>
+</body>
+</html>
