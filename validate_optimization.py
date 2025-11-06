@@ -147,14 +147,15 @@ def run_all_tests():
         ("Module imports", lambda: all([
             test_module_import("cv2"),
             test_module_import("numpy"),
-            test_module_import("dearpygui"),
+            test_module_import("flask"),  # Added Flask as main GUI framework
+            test_module_import("PIL"),    # Added Pillow for imaging
             test_module_import("serial"),
             test_module_import("ezdxf"),
             test_module_import("camera_manager", "camera_manager.py"),
             test_module_import("serial_comm", "serial_comm.py"),
             test_module_import("machine_control", "machine_control.py"),
             test_module_import("dxf_handler", "dxf_handler.py"),
-            test_module_import("gui_handler", "gui_handler.py")
+            test_module_import("gui_flask", "gui_flask.py")  # Test Flask GUI module
         ])),
         ("Camera functionality", test_camera_functionality),
         ("Serial functionality", test_serial_functionality),

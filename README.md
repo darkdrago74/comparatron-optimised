@@ -16,14 +16,13 @@ This project has been optimized and reorganized into the following structure:
 - Root directory - Core Python modules and main application
 
 ### Core Files:
-- `main_refactored.py` - Main application (refactored)
+- `main.py` - Main Flask-based application (primary)
 - `camera_manager.py` - Camera selection and management
 - `serial_comm.py` - Serial communication with CNC machine
 - `machine_control.py` - Machine control functions
 - `dxf_handler.py` - DXF file creation and export  
-- `gui_handler.py` - GUI interface management
+- `gui_flask.py` - Flask GUI interface management
 - `validate_optimization.py` - Validation script
-- `validate_git.sh` - Git validation script
 
 ### Dependencies:
 Install required dependencies before running:
@@ -82,6 +81,16 @@ cd rpi3_bookworm
 ./start_comparatron.sh
 ```
 This will start the Flask server and optionally open the browser if on a desktop system.
+
+### Running with LaserWeb4:
+LaserWeb4 can run simultaneously on the same Raspberry Pi. It's available in the laserweb4 folder:
+```bash
+cd laserweb4
+./install_laserweb4.sh
+```
+- Comparatron runs on port 5001: `http://[RPI_IP]:5001`
+- LaserWeb4 runs on port 8000: `http://[RPI_IP]:8000`
+- Both can run simultaneously on the same Raspberry Pi
 
 ## Documentation:
 All documentation is located in the `documentation/` folder including:
