@@ -67,6 +67,8 @@ install_packages() {
         "ezdxf"
         "serial-tools"
         "pyinstaller"
+        "flask"
+        "Pillow"
     )
     
     # Install each package
@@ -148,10 +150,10 @@ echo -e "${GREEN}All required packages for Comparatron have been installed.${NC}
 # Verify installation
 echo -e "${YELLOW}Verifying installations...${NC}"
 
-python3 -c "import dearpygui; import cv2; import numpy; import serial; import ezdxf; print('All modules imported successfully')"
+python3 -c "import dearpygui, cv2, numpy, serial, ezdxf, flask, PIL; print('All modules imported successfully')"
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}All modules verified successfully${NC}"
 else
     echo -e "${RED}Some modules failed to import${NC}"
-    echo "Please run: $PIP_CMD install dearpygui opencv-python numpy pyserial ezdxf pyinstaller"
+    echo "Please run: $PIP_CMD install dearpygui opencv-python numpy pyserial ezdxf pyinstaller flask Pillow"
 fi

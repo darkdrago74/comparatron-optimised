@@ -12,14 +12,64 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== Simplified Comparatron Fedora Installation ===${NC}"
 
+# Check if Python 3 is installed
+echo -e "${YELLOW}Checking Python installation...${NC}"
+if command -v python3 &> /dev/null; then
+    echo -e "${GREEN}Python 3 found$(python3 --version)${NC}"
+    PYTHON_CMD="python3"
+else
+    echo -e "${RED}Error: Python 3 is not installed.${NC}"
+    echo -e "${YELLOW}Installing Python 3...${NC}"
+    # Install Python 3 and pip
+    if command -v sudo &> /dev/null; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    $SUDO dnf install -y python3 python3-pip python3-devel &> /dev/null
+    if command -v python3 &> /dev/null; then
+        echo -e "${GREEN}Python 3 installed successfully${NC}"
+        PYTHON_CMD="python3"
+    else
+        echo -e "${RED}Error: Could not install Python 3.${NC}"
+        exit 1
+    fi
+fi
+
+# Check if pip is available
+echo -e "${YELLOW}Checking pip installation...${NC}"
+if command -v python3 &> /dev/null && python3 -m pip --version &> /dev/null; then
+    echo -e "${GREEN}Pip found$(python3 -m pip --version | cut -d' ' -f2)${NC}"
+    PIP_CMD="python3 -m pip"
+elif command -v pip3 &> /dev/null; then
+    echo -e "${GREEN}Pip3 found${NC}"
+    PIP_CMD="pip3"
+else
+    echo -e "${RED}Error: Pip is not installed.${NC}"
+    echo -e "${YELLOW}Installing pip...${NC}"
+    if command -v sudo &> /dev/null; then
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+    $SUDO dnf install -y python3-pip &> /dev/null
+    if python3 -m pip --version &> /dev/null; then
+        echo -e "${GREEN}Pip installed successfully${NC}"
+        PIP_CMD="python3 -m pip"
+    else
+        echo -e "${RED}Error: Could not install pip.${NC}"
+        exit 1
+    fi
+fi
+
 # Check if running as root or with sudo
 if [ "$EUID" -ne 0 ]; then
     if command -v sudo &> /dev/null; then
         SUDO="sudo"
         echo -e "${GREEN}Sudo available${NC}"
     else
-        echo -e "${RED}Error: sudo is required but not available.${NC}"
-        exit 1
+        echo -e "${YELLOW}Sudo not available, proceeding without elevated privileges where possible${NC}"
+        SUDO=""
     fi
 else
     SUDO=""
@@ -28,19 +78,25 @@ fi
 
 # Update package list
 echo -e "${YELLOW}Updating package list...${NC}"
-$SUDO dnf update -y &> /dev/null
-
-# Install Python 3 and pip
-echo -e "${YELLOW}Installing Python 3 and pip...${NC}"
-$SUDO dnf install -y python3 python3-pip python3-devel &> /dev/null
+if [ -n "$SUDO" ]; then
+    $SUDO dnf update -y &> /dev/null || echo -e "${YELLOW}Could not update package list, continuing anyway...${NC}"
+fi
 
 # Install system dependencies
 echo -e "${YELLOW}Installing system dependencies...${NC}"
-$SUDO dnf install -y gcc gcc-c++ make wget curl git v4l-utils gstreamer1-plugins-good mesa-libGL &> /dev/null
+if [ -n "$SUDO" ]; then
+    $SUDO dnf install -y gcc gcc-c++ make wget curl git v4l-utils gstreamer1-plugins-good mesa-libGL &> /dev/null || echo -e "${YELLOW}Some system dependencies could not be installed${NC}"
+else
+    echo -e "${YELLOW}No sudo access, skipping system dependency installation${NC}"
+fi
 
 # Upgrade pip
 echo -e "${YELLOW}Upgrading pip...${NC}"
-python3 -m pip install --upgrade pip --user &> /dev/null
+if [ -n "$SUDO" ]; then
+    $SUDO -H python3 -m pip install --upgrade pip || python3 -m pip install --upgrade pip --user
+else
+    python3 -m pip install --upgrade pip --user
+fi
 
 # Install required Python packages
 echo -e "${YELLOW}Installing required Python packages...${NC}"
@@ -53,10 +109,15 @@ pyserial
 opencv-python
 ezdxf
 pyinstaller
-EOF
+flask
+pillow
 
 # Install from requirements file to handle dependencies properly
-python3 -m pip install -r /tmp/requirements.txt --user
+if [ -n "$SUDO" ]; then
+    $SUDO -H python3 -m pip install -r /tmp/requirements.txt || python3 -m pip install -r /tmp/requirements.txt --user
+else
+    python3 -m pip install -r /tmp/requirements.txt --user
+fi
 
 # Clean up
 rm /tmp/requirements.txt
@@ -64,12 +125,21 @@ rm /tmp/requirements.txt
 # Test the installation
 echo -e "${YELLOW}Testing the installation...${NC}"
 
-# Test Python packages
-python3 -c "import cv2; print('OpenCV: OK')" 2>/dev/null && echo -e "${GREEN}✓ OpenCV working${NC}" || echo -e "${RED}✗ OpenCV not working${NC}"
-python3 -c "import dearpygui; print('DearPyGUI: OK')" 2>/dev/null && echo -e "${GREEN}✓ DearPyGUI working${NC}" || echo -e "${RED}✗ DearPyGUI not working${NC}"
-python3 -c "import numpy; print('NumPy: OK')" 2>/dev/null && echo -e "${GREEN}✓ NumPy working${NC}" || echo -e "${RED}✗ NumPy not working${NC}"
-python3 -c "import serial; print('PySerial: OK')" 2>/dev/null && echo -e "${GREEN}✓ PySerial working${NC}" || echo -e "${RED}✗ PySerial not working${NC}"
-python3 -c "import ezdxf; print('EzDxf: OK')" 2>/dev/null && echo -e "${GREEN}✓ EzDxf working${NC}" || echo -e "${RED}✗ EzDxf not working${NC}"
+# Define arrays for packages and their import statements
+packages=("numpy" "dearpygui" "pyserial" "opencv-python" "ezdxf" "flask" "pillow")
+imports=("numpy" "dearpygui" "serial" "cv2" "ezdxf" "flask" "PIL")
+
+# Test each package
+for i in "${!packages[@]}"; do
+    pkg="${packages[$i]}"
+    imp="${imports[$i]}"
+    
+    if python3 -c "import ${imp}" &> /dev/null; then
+        echo -e "${GREEN}✓ ${pkg} working${NC}"
+    else
+        echo -e "${RED}✗ ${pkg} not working${NC}"
+    fi
+done
 
 # Show available cameras
 echo -e "${YELLOW}Available camera devices:${NC}"
@@ -83,7 +153,11 @@ fi
 
 # Add user to video group for camera access (optional)
 echo -e "${YELLOW}Setting up camera access permissions...${NC}"
-$SUDO usermod -a -G video $USER 2>/dev/null && echo -e "${GREEN}✓ Added user to video group${NC}" || echo -e "${YELLOW}Note: Could not add user to video group (may require manual setup)${NC}"
+if [ -n "$SUDO" ]; then
+    $SUDO usermod -a -G video $USER 2>/dev/null && echo -e "${GREEN}✓ Added user to video group${NC}" || echo -e "${YELLOW}Note: Could not add user to video group (may require manual setup)${NC}"
+else
+    echo -e "${YELLOW}No sudo access, cannot add user to video group. You may need to run: sudo usermod -a -G video \$USER${NC}"
+fi
 
 echo -e "${GREEN}=== Installation completed ===${NC}"
 echo -e "${GREEN}To use Comparatron:${NC}"
