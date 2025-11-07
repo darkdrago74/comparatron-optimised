@@ -5,10 +5,9 @@ This folder contains the necessary scripts and information to set up Comparatron
 ## Important Steps Before Running
 
 ### For Fedora Systems:
-1. **Install Fedora Installation Script**: Use either the comprehensive or simplified Fedora installation script for a fresh Fedora installation.
+1. **Install Fedora Installation Script**: Use the simplified Fedora installation script for a fresh Fedora installation.
 
-   - `fedora_install.sh` - Comprehensive installation (includes virtual environment)
-   - `fedora_install_simple.sh` - Minimal installation for basic setup
+   - `fedora_install_simple.sh` - Comprehensive installation for Fedora systems
 
 2. **Run the Installation Script**:
    ```bash
@@ -30,7 +29,10 @@ This folder contains the necessary scripts and information to set up Comparatron
 
 ### After Dependencies Installation:
 1. Clone or place the Comparatron source files in your desired directory
-2. Run the application with: `python3 main_refactored.py`
+2. Run the application with: `python3 main.py` (primary Flask interface)
+
+Alternative interfaces:
+- Flask Web Interface: `python3 main.py` (primary)
 
 ## Requirements
 - Python 3.7 or higher
