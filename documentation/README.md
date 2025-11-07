@@ -15,5 +15,5 @@ These documents relate to older development phases that have been superseded by 
 
 ## Current Project Status:
 - Latest implementation uses Flask web interface
-- Both DearPyGUI (backup) and Flask (primary) interfaces available
+- Flask (primary) interfaces available
 - Fully modularized codebase with improved functionality
