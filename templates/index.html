@@ -189,6 +189,10 @@
                             <option value="">Select Camera</option>
                         </select>
                         <div></div>
+                        <button class="btn" onclick="refreshCameras()">Refresh Cameras</button>
+                        <div></div>
+                        <button class="btn btn-warning" onclick="testCamera()">Test Selected Camera</button>
+                        <div></div>
                         <button class="btn" onclick="initializeCamera()">Initialize Camera</button>
                     </div>
                 </div>
@@ -204,17 +208,25 @@
                             <option value="10.00" selected>10.00</option>
                             <option value="50.00">50.00</option>
                         </select>
+                        <div></div>
+                        <div>
+                            <label>
+                                <input type="checkbox" id="keyboardEnable" onchange="toggleKeyboardControl()"> Enable Keyboard Arrow Controls
+                            </label>
+                        </div>
                     </div>
                     
                     <div class="jog-panel">
-                        <button class="btn jog-btn y-pos" onclick="jog('y', 'positive')">Y+</button>
-                        <button class="btn jog-btn x-neg" onclick="jog('x', 'negative')">X-</button>
-                        <button class="btn jog-btn x-pos" onclick="jog('x', 'positive')">X+</button>
+                        <button class="btn jog-btn y-pos" id="yPosBtn" onclick="jog('y', 'positive')">Y+</button>
+                        <button class="btn jog-btn x-neg" id="xNegBtn" onclick="jog('x', 'negative')">X-</button>
+                        <button class="btn jog-btn x-pos" id="xPosBtn" onclick="jog('x', 'positive')">X+</button>
                         <div class="btn jog-btn z-controls">
-                            <button class="btn" style="display:block; width:100%; margin-bottom:5px;" onclick="jog('z', 'positive')">Z+</button>
-                            <button class="btn" style="display:block; width:100%;" onclick="jog('z', 'negative')">Z-</button>
+                            <div>
+                                <button class="btn" style="display:block; width:100%; margin-bottom:5px;" onclick="jog('z', 'positive')">Z+</button>
+                                <button class="btn" style="display:block; width:100%;" onclick="jog('z', 'negative')">Z-</button>
+                            </div>
                         </div>
-                        <button class="btn jog-btn y-neg" onclick="jog('y', 'negative')">Y-</button>
+                        <button class="btn jog-btn y-neg" id="yNegBtn" onclick="jog('y', 'negative')">Y-</button>
                     </div>
                     
                     <div>
@@ -288,6 +300,60 @@
                     select.appendChild(option);
                 });
             });
+        
+        // Add refresh cameras function
+        function refreshCameras() {
+            fetch('/api/cameras')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.getElementById('cameraSelect');
+                    select.innerHTML = '<option value="">Select Camera</option>';
+                    data.forEach(cam => {
+                        const option = document.createElement('option');
+                        option.value = cam;
+                        option.textContent = `Camera ${cam}`;
+                        select.appendChild(option);
+                    });
+                    alert(`Found ${data.length} camera(s)`);
+                })
+                .catch(error => {
+                    console.error('Error refreshing cameras:', error);
+                    alert('Error refreshing camera list');
+                });
+        }
+        
+        function testCamera() {
+            const cameraSelect = document.getElementById('cameraSelect');
+            if (cameraSelect.value === '') {
+                alert('Please select a camera first');
+                return;
+            }
+            
+            const cameraIndex = parseInt(cameraSelect.value);
+            
+            fetch('/api/test_camera', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    camera_index: cameraIndex
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.success) {
+                    console.log('Camera test successful');
+                } else {
+                    console.log('Camera test failed');
+                }
+            })
+            .catch(error => {
+                console.error('Error testing camera:', error);
+                alert('Error testing camera');
+            });
+        }
         
         // Load available ports
         fetch('/api/ports')
@@ -595,6 +661,81 @@
             .catch(error => {
                 console.error('Error:', error);
                 alert('Error exporting DXF');
+            });
+        }
+        
+        // Keyboard Control Functions
+        let keyboardControlsEnabled = false;
+        
+        function toggleKeyboardControl() {
+            const checkbox = document.getElementById('keyboardEnable');
+            keyboardControlsEnabled = checkbox.checked;
+            if (keyboardControlsEnabled) {
+                document.addEventListener('keydown', handleKeyDown);
+                console.log('Keyboard arrow controls enabled');
+            } else {
+                document.removeEventListener('keydown', handleKeyDown);
+                console.log('Keyboard arrow controls disabled');
+            }
+        }
+        
+        function handleKeyDown(event) {
+            if (!keyboardControlsEnabled) return;
+            
+            // Prevent default behavior for arrow keys to prevent page scrolling
+            if ([37, 38, 39, 40].includes(event.keyCode)) {
+                event.preventDefault();
+            }
+            
+            const distance = document.getElementById('jogDistance').value;
+            
+            switch(event.keyCode) {
+                case 37: // Left arrow (X-)
+                    sendJogCommand('x', 'negative', distance);
+                    highlightButton('xNegBtn');
+                    break;
+                case 39: // Right arrow (X+)
+                    sendJogCommand('x', 'positive', distance);
+                    highlightButton('xPosBtn');
+                    break;
+                case 38: // Up arrow (Y+)
+                    sendJogCommand('y', 'positive', distance);
+                    highlightButton('yPosBtn');
+                    break;
+                case 40: // Down arrow (Y-)
+                    sendJogCommand('y', 'negative', distance);
+                    highlightButton('yNegBtn');
+                    break;
+            }
+        }
+        
+        function highlightButton(btnId) {
+            const btn = document.getElementById(btnId);
+            const originalBg = btn.style.backgroundColor;
+            btn.style.backgroundColor = '#ff6600'; // Orange highlight
+            setTimeout(() => {
+                btn.style.backgroundColor = originalBg || '';
+            }, 200);
+        }
+        
+        function sendJogCommand(axis, direction, distance) {
+            fetch('/api/jog', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    axis: axis,
+                    direction: direction,
+                    distance: parseFloat(distance)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Jog command sent via keyboard:', `${axis}${direction}`, distance);
+            })
+            .catch(error => {
+                console.error('Error sending keyboard jog command:', error);
             });
         }
     </script>
