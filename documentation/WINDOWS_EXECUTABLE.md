@@ -1,103 +1,122 @@
-# Creating Windows Executable for Comparatron
+# Creating Windows Executable for Comparatron Flask Version
 
-This document explains how to create a standalone Windows executable for the Comparatron software using PyInstaller.
+This document explains how to create a standalone Windows executable for the Comparatron Flask-based software using PyInstaller.
+
+## Important Note: Web-Based Architecture
+
+The current Comparatron uses a **Flask web interface** which creates a web server that can be accessed through any browser at `http://localhost:5001`. Unlike traditional desktop applications, this creates a web server that runs locally but requires a browser for the interface.
 
 ## Prerequisites
 
-- Python installed on your Windows system
-- All required dependencies installed (numpy, dearpygui, pyserial, opencv-python, ezdxf, serial-tools)
+- Python installed on your Windows system (3.7 or later)
+- All required dependencies installed (numpy, flask, pyserial, opencv-python, ezdxf, pillow)
 - PyInstaller installed (install with `pip install pyinstaller`)
 
 ## Creating the Executable
 
-### Method 1: One-File Executable (Recommended)
-This creates a single .exe file that contains everything needed to run the application:
+### Option 1: Flask Server Executable (Primary Method)
+This creates an executable that starts the Flask server:
 
 ```bash
-pyinstaller main_refactored.py -F --name Comparatron --add-data "LICENSE;." --add-data "README.md;."
+pyinstaller main.py --name ComparatronWeb --add-data "templates;templates" --add-data "LICENSE;." --add-data "README.md;."
 ```
 
-### Method 2: Directory with Dependencies
-This creates a directory containing the executable and all dependencies:
+### Option 2: One-File Executable
+This creates a single .exe file that contains everything:
 
 ```bash
-pyinstaller main_refactored.py --name Comparatron --add-data "LICENSE;." --add-data "README.md;."
+pyinstaller main.py -F --name ComparatronWeb --add-data "templates;templates" --add-data "LICENSE;." --add-data "README.md;."
 ```
 
 ## PyInstaller Options Explained
 
-- `-F` or `--onefile`: Creates a single executable file
-- `--name`: Sets the name of the executable (default: main_refactored)
-- `--add-data`: Includes additional files in the executable
+- `-F` or `--onefile`: Creates a single executable file (larger, slower startup)
+- `--name`: Sets the name of the executable
+- `--add-data`: Includes additional files/directories in the executable
   - Format on Windows: `"source;destination"`
   - Format on Linux/Mac: `"source:destination"`
-- `--windowed`: Use this if you want to run without a console window (optional)
+- `--hidden-import`: Explicitly include modules that PyInstaller might miss
+- `--collect-all`: Collect all files from a package
 
-## Complete Command with Optimizations
+## Recommended Command
 
-For the best results with the Comparatron application, use this command:
+For the best results with the Comparatron Flask application, use this command:
 
 ```bash
-pyinstaller main_refactored.py -F --name Comparatron --add-data "LICENSE;." --add-data "README.md;." --hidden-import=cv2 --hidden-import=dearpygui --hidden-import=serial --hidden-import=ezdxf
+pyinstaller main.py --name ComparatronFlask --add-data "templates;templates" --add-data "LICENSE;." --add-data "README.md;." --hidden-import=flask --hidden-import=cv2 --hidden-import=PIL --hidden-import=serial --hidden-import=ezdxf
 ```
 
-## Advanced Options
+## Alternative: Enhanced Launcher Batch File
 
-If you encounter issues, you can use additional options:
+Since the Flask web interface requires a browser, consider creating both the executable and a batch file that starts it and opens the browser automatically:
 
-- `--exclude-module`: Exclude specific modules to reduce file size
-- `--icon`: Add an icon to the executable: `--icon=icon.ico`
-- `--clean`: Clean PyInstaller cache and temporary files before building
+Create `launch_comparatron.bat`:
+```batch
+@echo off
+REM Comparatron Launcher
+REM Starts the Flask server and opens the browser automatically
 
-Example with icon:
-```bash
-pyinstaller main_refactored.py -F --name Comparatron --icon=comparatron_icon.ico --add-data "LICENSE;." --add-data "README.md;."
+echo Starting Comparatron Flask Server...
+echo Opening browser at http://localhost:5001
+
+REM Change to the script's directory
+cd /d "%~dp0"
+
+REM Activate virtual environment if it exists
+if exist "comparatron_env\Scripts\activate.bat" (
+    call comparatron_env\Scripts\activate.bat
+)
+
+REM Start the Flask server in the background
+start python main.py
+
+REM Wait for server to start, then open browser
+timeout /t 3 /nobreak >nul
+start http://localhost:5001
+
+echo Comparatron is running. Browse to http://localhost:5001
+echo Close this window to stop the server.
+pause
 ```
 
 ## Troubleshooting
 
 ### Common Issues and Solutions:
 
-1. **Missing modules error**
+1. **Missing templates error**
+   - Ensure `--add-data "templates;templates"` is included
+   - Flask needs access to the templates directory
+
+2. **Import errors after building**
    - Add `--hidden-import=module_name` for each missing module
+   - Common ones: `--hidden-import=flask`, `--hidden-import=cv2`
 
-2. **Large file size**
-   - Use `--exclude-module` to exclude unnecessary modules
-   - Consider using directory output instead of single file
+3. **Large file size**
+   - Flask applications tend to be larger due to web framework requirements
+   - Consider distributing as a directory instead of single file
 
-3. **OpenCV issues**
-   - Ensure opencv-python is installed correctly
-   - Add `--hidden-import=cv2`
-
-4. **DearPyGUI issues**
-   - Add `--hidden-import=dearpygui`
-
-## Example Complete Build Script
-
-Create a batch file to automate the build process:
-
-```batch
-@echo off
-echo Building Comparatron executable...
-pyinstaller main_refactored.py -F --name Comparatron --add-data "LICENSE;." --add-data "README.md;." --hidden-import=cv2 --hidden-import=dearpygui --hidden-import=serial --hidden-import=ezdxf
-if %ERRORLEVEL% EQU 0 (
-    echo Build completed successfully!
-    echo Executable is located in the dist folder.
-) else (
-    echo Build failed with error level %ERRORLEVEL%
-)
-pause
-```
+4. **Template directory not found**
+   - If using one-file approach, some resources might not resolve properly
+   - Consider using directory-based executable for reliability
 
 ## Distribution
 
-Once built, the executable can be run on any Windows system without requiring Python to be installed. The executable will be found in the `dist/` folder created by PyInstaller.
+After building, distribute:
+- The executable in the `dist/` folder
+- A shortcut or batch file that opens the browser to `http://localhost:5001`
+- Inform users that the interface will be available in their browser
 
-Place the executable in a dedicated folder for distribution. Users can run it directly without any additional setup.
+## User Experience
 
-## Updating the Executable
+When users run the executable:
+1. A console window appears showing server startup
+2. The Flask server starts listening on `http://localhost:5001`
+3. Users access the interface by opening a browser 
+4. All functionality is available through the web interface
 
-To update the executable with new features:
-1. Make changes to the source code
-2. Delete the old build directories (`build/`, `dist/`, and `*.spec` file)
-3. Run the PyInstaller command again
+## Important Considerations
+
+- **Internet Browser Required**: Users must have a web browser installed
+- **Local Network Access**: The interface can be accessed from other devices on the same network
+- **Multiple Interfaces**: Both the Flask web interface and any browser can access the same server
+- **Port Configuration**: The server runs on port 5001 by default
