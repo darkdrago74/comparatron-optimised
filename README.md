@@ -25,12 +25,6 @@ This project has been optimized and reorganized into the following structure:
 - `validate_optimization.py` - Validation script
 
 ### Dependencies:
-Install required dependencies before running:
-```bash
-cd dependencies/
-chmod +x fedora_install_simple.sh
-./fedora_install_simple.sh
-```
 
 ### For Fedora Installation:
 For fresh Fedora systems, use the specific installation scripts:
@@ -48,10 +42,6 @@ python3 main.py
 ```
 The web interface will be available at http://localhost:5001
 
-#### For Desktop GUI (Backup - DearPyGUI):
-```bash
-python3 main_dearpygui_backup.py
-```
 
 ### Camera Access on Linux/Fedora:
 If cameras are not detected, you may need to add your user to the video group:
