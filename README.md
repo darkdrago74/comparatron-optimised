@@ -28,8 +28,8 @@ This project has been optimized and reorganized into the following structure:
 Install required dependencies before running:
 ```bash
 cd dependencies/
-chmod +x install_dependencies.sh
-./install_dependencies.sh
+chmod +x fedora_install_simple.sh
+./fedora_install_simple.sh
 ```
 
 ### For Fedora Installation:
