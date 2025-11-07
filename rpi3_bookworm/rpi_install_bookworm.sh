@@ -118,9 +118,9 @@ After=network.target
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=/home/$USER/Comparatron
+WorkingDirectory=/home/$USER/comparatron-optimised
 Environment=PATH=/home/$USER/comparatron_env/bin
-ExecStart=/home/$USER/comparatron_env/bin/python3 /home/$USER/Comparatron/main.py
+ExecStart=/home/$USER/comparatron_env/bin/python3 /home/$USER/comparatron-optimised/main.py
 Restart=always
 RestartSec=10
 
@@ -147,10 +147,10 @@ fi
 
 echo -e "${GREEN}=== Installation completed ===${NC}"
 echo -e "${GREEN}To use Comparatron:${NC}"
-echo -e "${GREEN}1. Make sure the Comparatron folder is in your home directory as '/home/$USER/Comparatron'${NC}"
+echo -e "${GREEN}1. Make sure the Comparatron folder is in your home directory as '/home/$USER/comparatron-optimised'${NC}"
 echo -e "${GREEN}2. The web interface will automatically start on boot${NC}"
 echo -e "${GREEN}3. Access the interface at: http://[RPI_IP_ADDRESS]:5001${NC}"
-echo -e "${GREEN}4. To manually start: source ~/comparatron_env/bin/activate && python3 ~/Comparatron/main.py${NC}"
+echo -e "${GREEN}4. To manually start: source ~/comparatron_env/bin/activate && python3 ~/comparatron-optimised/main.py${NC}"
 echo -e "${GREEN}5. To restart the service manually: sudo systemctl restart comparatron${NC}"
 echo -e "${GREEN}${NC}"
 echo -e "${GREEN}Note: After adding to video group, log out and log back in to access cameras.${NC}"
