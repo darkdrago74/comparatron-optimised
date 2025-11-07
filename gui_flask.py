@@ -207,6 +207,18 @@ class ComparatronFlaskGUI:
             else:
                 return jsonify({'success': False, 'message': 'Failed to export DXF'}), 400
         
+        @self.app.route('/api/test_camera', methods=['POST'])
+        def test_camera():
+            camera_index = int(request.json.get('camera_index', -1))
+            if camera_index < 0:
+                return jsonify({'success': False, 'message': 'No camera index provided'}), 400
+            
+            # Test the specific camera
+            from camera_manager import test_camera_connection
+            success, message = test_camera_connection(camera_index)
+            
+            return jsonify({'success': success, 'message': message})
+        
         @self.app.route('/api/status')
         def get_status():
             return jsonify({

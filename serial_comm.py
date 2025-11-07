@@ -150,13 +150,84 @@ class SerialCommunicator:
     
     def get_available_ports(self):
         """
-        Get list of available COM ports
+        Get list of available COM ports filtered to prioritize potential GRBL devices
         
         Returns:
-            list: List of available COM ports
+            list: List of available COM ports that are likely to be GRBL controllers
         """
-        ports = serial.tools.list_ports.comports()
-        return ports
+        import platform
+        all_ports = serial.tools.list_ports.comports()
+        
+        # Filter for likely GRBL/Arduino devices using multiple criteria
+        grbl_ports = []
+        arduino_ports = []
+        
+        for port in all_ports:
+            # Check the description for keywords that indicate likely Arduino/GRBL devices
+            desc = port.description.lower()
+            vid_pid = f"{port.vid}:{port.pid}".lower() if port.vid else ""
+            product = port.product.lower() if port.product else ""
+            manuf = port.manufacturer.lower() if port.manufacturer else ""
+            
+            # Criteria for GRBL devices (common identifiers for Arduino-based CNC controllers)
+            is_grbl_device = (
+                # Common descriptions in Arduino/GRBL controllers
+                ('arduino' in desc or 'arduino' in product or 'arduino' in manuf) or
+                ('grbl' in desc or 'grbl' in product or 'grbl' in manuf) or
+                ('cnc' in desc or 'cnc' in product) or
+                ('ch340' in desc or 'ch340' in manuf) or  # Common USB-serial chip
+                ('cp210' in desc or 'cp210' in manuf) or  # Another common chip
+                ('ftdi' in desc or 'ftdi' in manuf) or    # FTDI chips are common in Arduinos
+                ('atmega' in desc or 'atmega' in product) or  # Atmel ATMega chips
+                # Common VID/PID combinations for Arduino/compatible boards
+                ('2341' in vid_pid or  # Arduino official
+                 '1a86' in vid_pid or  # CH340 Chinese Arduinos
+                 '0403' in vid_pid or  # FTDI
+                 '10c4' in vid_pid or  # CP210x
+                 '03eb' in vid_pid)    # Atmel (Arduino Mega)
+            )
+            
+            # Common USB serial converters used with GRBL
+            is_usb_serial = (
+                'ch340' in desc or 'ch340' in manuf or
+                'cp210' in desc or 'cp210' in manuf or 
+                'ftdi' in desc or 'ftdi' in manuf or
+                'usb' in desc
+            )
+            
+            # On Linux, prioritize USB serial ports that are likely for microcontrollers
+            if platform.system().lower() == 'linux':
+                # On Linux, USB serial adapters typically show up as /dev/ttyUSB* or /dev/ttyACM*
+                is_usb_adapter = port.device.startswith('/dev/ttyUSB') or port.device.startswith('/dev/ttyACM')
+                
+                if is_grbl_device or (is_usb_serial and is_usb_adapter):
+                    grbl_ports.append(port)
+                elif 'arduino' in manuf or 'grbl' in manuf or 'cnc' in manuf:
+                    # Additional check for manufacturer names
+                    grbl_ports.append(port)
+                elif is_usb_serial:
+                    # Less certain but possibly relevant devices go to a secondary list
+                    arduino_ports.append(port)
+            else:
+                # On other systems (Windows/MacOS), include devices that match criteria
+                if is_grbl_device:
+                    grbl_ports.append(port)
+                elif is_usb_serial:
+                    arduino_ports.append(port)
+        
+        # Combine the lists: definitely GRBL devices first, then potential Arduino devices
+        filtered_ports = grbl_ports + [port for port in arduino_ports if port not in grbl_ports]
+        
+        if not filtered_ports:
+            # If no filtered ports are found, return all ports as backup
+            logging.info("No GRBL-specific ports found, returning all available ports")
+            filtered_ports = list(all_ports)
+        
+        # Log what we found
+        port_info = [(port.device, port.description) for port in filtered_ports]
+        logging.info(f"Filtered ports for GRBL devices: {port_info}")
+        
+        return filtered_ports
     
     def home_machine(self):
         """Send home command to the machine ($H)"""
