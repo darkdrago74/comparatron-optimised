@@ -34,13 +34,22 @@ else
     apt update -y
 fi
 
-# Install system dependencies
+# Install system dependencies carefully to avoid conflicts
 echo -e "${YELLOW}Installing system dependencies...${NC}"
+
+# Check if conflicting packages exist and handle appropriately
 if [ -n "$SUDO" ]; then
-    # Skip GUI-related packages that don't exist on ARM/Raspberry Pi
-    $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev
+    # Check which package is available to avoid conflicts
+    if $SUDO apt show libilmbase-dev &> /dev/null; then
+        # Install libilmbase-dev if it doesn't conflict
+        $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libatlas3-base
+    else
+        # If ilmbase conflicts with imath, use a different set of packages
+        $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libatlas3-base
+    fi
 else
-    apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev
+    # For non-sudo installations
+    apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libatlas3-base
 fi
 
 # Create and activate virtual environment
@@ -60,8 +69,8 @@ pip3 install --prefer-binary numpy
 
 # Install OpenCV with timeout and using pre-compiled ARM binaries - skip if taking too long
 echo -e "${YELLOW}Installing OpenCV headless version (for RPi) - using pre-compiled binaries...${NC}"
-# Use piwheels index explicitly for ARM-optimized packages
-pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing with other packages...${NC}"
+# Try to install with timeout to avoid long build times
+timeout 60 pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing with other packages...${NC}"
 
 # Install remaining packages
 pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
@@ -78,7 +87,7 @@ pyinstaller
 EOF
 
 # Install from requirements to handle any remaining dependency issues with ARM-optimized packages
-pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary -r requirements.txt || echo -e "${YELLOW}Some packages may have failed but continuing...${NC}"
+timeout 30 pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary -r requirements.txt || echo -e "${YELLOW}Some packages may have failed but continuing...${NC}"
 
 # Clean up
 rm requirements.txt
@@ -86,17 +95,15 @@ rm requirements.txt
 # Test the installation
 echo -e "${YELLOW}Testing the installation...${NC}"
 
-# Define arrays for packages and their import statements (only essential packages for Flask interface)
-packages=("numpy" "flask" "pyserial" "ezdxf" "PIL" "cv2")  # PIL is required before cv2
-imports=("numpy" "flask" "serial" "ezdxf" "PIL" "cv2")
+# Define arrays for packages and their import statements
+packages=("numpy" "flask" "pyserial" "ezdxf" "PIL")
+imports=("numpy" "flask" "serial" "ezdxf" "PIL")
 
 # Test each package
 for i in "${!packages[@]}"; do
     pkg="${packages[$i]}"
     imp="${imports[$i]}"
-    if [ "$imp" = "cv2" ]; then
-        imp_test="cv2 as cv"
-    elif [ "$imp" = "serial" ]; then
+    if [ "$imp" = "serial" ]; then
         imp_test="serial as serial_lib"
     else
         imp_test="$imp"
@@ -105,14 +112,17 @@ for i in "${!packages[@]}"; do
     if python3 -c "import $imp_test" &> /dev/null; then
         echo -e "${GREEN}✓ ${pkg} working${NC}"
     else
-        # For OpenCV, it might be acceptable if it's not available during installation (takes too long)
-        if [ "$pkg" = "cv2" ]; then
-            echo -e "${YELLOW}? ${pkg} may not be installed (can take long time to compile on RPi)${NC}"
-        else
-            echo -e "${RED}✗ ${pkg} not working${NC}"
-        fi
+        echo -e "${RED}✗ ${pkg} not working${NC}"
     fi
 done
+
+# Check opencv separately with more specific message
+if python3 -c "import cv2" &> /dev/null; then
+    echo -e "${GREEN}✓ OpenCV working${NC}"
+else
+    echo -e "${YELLOW}? OpenCV not installed - may need to install separately depending on build time. This is ok for initial setup.${NC}"
+    echo -e "${YELLOW}  To install later: pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless${NC}"
+fi
 
 # Set up auto-start of Comparatron Flask GUI on boot
 echo -e "${YELLOW}Setting up auto-start service...${NC}"
