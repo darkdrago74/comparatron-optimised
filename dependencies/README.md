@@ -27,6 +27,14 @@ This folder contains the necessary scripts and information to set up Comparatron
    ./install_dependencies.sh
    ```
 
+### Complete Uninstallation:
+If you need to completely remove Comparatron and LaserWeb4 installations:
+```bash
+chmod +x uninstall.sh
+./uninstall.sh
+```
+This removes all services, virtual environments, and installed packages.
+
 ### After Dependencies Installation:
 1. Clone or place the Comparatron source files in your desired directory
 2. Run the application with: `python3 main.py` (primary Flask interface)
