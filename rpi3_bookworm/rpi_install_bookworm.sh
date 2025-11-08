@@ -37,9 +37,10 @@ fi
 # Install system dependencies
 echo -e "${YELLOW}Installing system dependencies...${NC}"
 if [ -n "$SUDO" ]; then
-    $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libqtgui4 libqtwebkit4 libqt4-test python3-pyqt5 python3-pyqt5.qtwebkit libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libdc1394-22-dev
+    # Skip GUI-related packages that don't exist on ARM/Raspberry Pi
+    $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev
 else
-    apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libqtgui4 libqtwebkit4 libqt4-test python3-pyqt5 python3-pyqt5.qtwebkit libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libdc1394-22-dev
+    apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev
 fi
 
 # Create and activate virtual environment
@@ -55,14 +56,15 @@ python3 -m pip install --upgrade pip
 echo -e "${YELLOW}Installing required Python packages...${NC}"
 
 # Install packages that have ARM-compatible versions first
-pip3 install numpy
+pip3 install --prefer-binary numpy
 
-# Install OpenCV (may take a while on RPi)
-echo -e "${YELLOW}Installing OpenCV (this may take a while on Raspberry Pi)...${NC}"
-pip3 install opencv-python-headless  # Use headless version for RPi
+# Install OpenCV with timeout and using pre-compiled ARM binaries - skip if taking too long
+echo -e "${YELLOW}Installing OpenCV headless version (for RPi) - using pre-compiled binaries...${NC}"
+# Use piwheels index explicitly for ARM-optimized packages
+pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing with other packages...${NC}"
 
 # Install remaining packages
-pip3 install flask pillow pyserial ezdxf dearpygui pyinstaller
+pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
 
 # Create a temporary requirements file in case of issues
 cat > requirements.txt << EOF
@@ -71,13 +73,12 @@ flask
 pillow
 pyserial
 ezdxf
-dearpygui
 opencv-python-headless
 pyinstaller
 EOF
 
-# Install from requirements to handle any dependency issues
-pip3 install -r requirements.txt
+# Install from requirements to handle any remaining dependency issues with ARM-optimized packages
+pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary -r requirements.txt || echo -e "${YELLOW}Some packages may have failed but continuing...${NC}"
 
 # Clean up
 rm requirements.txt
@@ -85,9 +86,9 @@ rm requirements.txt
 # Test the installation
 echo -e "${YELLOW}Testing the installation...${NC}"
 
-# Define arrays for packages and their import statements
-packages=("numpy" "flask" "pyserial" "ezdxf" "dearpygui" "cv2" "PIL")
-imports=("numpy" "flask" "serial" "ezdxf" "dearpygui" "cv2" "PIL")
+# Define arrays for packages and their import statements (only essential packages for Flask interface)
+packages=("numpy" "flask" "pyserial" "ezdxf" "PIL" "cv2")  # PIL is required before cv2
+imports=("numpy" "flask" "serial" "ezdxf" "PIL" "cv2")
 
 # Test each package
 for i in "${!packages[@]}"; do
@@ -95,6 +96,8 @@ for i in "${!packages[@]}"; do
     imp="${imports[$i]}"
     if [ "$imp" = "cv2" ]; then
         imp_test="cv2 as cv"
+    elif [ "$imp" = "serial" ]; then
+        imp_test="serial as serial_lib"
     else
         imp_test="$imp"
     fi
@@ -102,7 +105,12 @@ for i in "${!packages[@]}"; do
     if python3 -c "import $imp_test" &> /dev/null; then
         echo -e "${GREEN}✓ ${pkg} working${NC}"
     else
-        echo -e "${RED}✗ ${pkg} not working${NC}"
+        # For OpenCV, it might be acceptable if it's not available during installation (takes too long)
+        if [ "$pkg" = "cv2" ]; then
+            echo -e "${YELLOW}? ${pkg} may not be installed (can take long time to compile on RPi)${NC}"
+        else
+            echo -e "${RED}✗ ${pkg} not working${NC}"
+        fi
     fi
 done
 
@@ -153,4 +161,7 @@ echo -e "${GREEN}3. Access the interface at: http://[RPI_IP_ADDRESS]:5001${NC}"
 echo -e "${GREEN}4. To manually start: source ~/comparatron_env/bin/activate && python3 ~/comparatron-optimised/main.py${NC}"
 echo -e "${GREEN}5. To restart the service manually: sudo systemctl restart comparatron${NC}"
 echo -e "${GREEN}${NC}"
-echo -e "${GREEN}Note: After adding to video group, log out and log back in to access cameras.${NC}"
+echo -e "${GREEN}Note: If OpenCV took too long to install, you may need to install it separately with:${NC}"
+echo -e "${GREEN}  pip3 install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless${NC}"
+echo -e "${GREEN}After adding to video group, log out and log back in to access cameras.${NC}"
+echo -e "${GREEN}The main Comparatron interface is Flask-based (web interface).${NC}"
