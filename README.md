@@ -53,6 +53,17 @@ The web interface will be available at http://localhost:5001
 python3 main_dearpygui_backup.py
 ```
 
+### Uninstalling Everything:
+
+To completely remove Comparatron and LaserWeb4 installations:
+
+```bash
+cd dependencies/
+./uninstall.sh
+```
+
+This will remove all services, virtual environments, and installed packages related to both Comparatron and LaserWeb4.
+
 ### Camera Access on Linux/Fedora:
 If cameras are not detected, you may need to add your user to the video group:
 ```bash
