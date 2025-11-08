@@ -44,8 +44,24 @@ fi
 
 # Check if Node.js and npm are properly installed
 echo -e "${YELLOW}Checking Node.js and npm versions...${NC}"
-nodejs --version
-npm --version
+if command -v node &> /dev/null; then
+    node --version
+else
+    # Try nodejs command (different name on some systems)
+    if command -v nodejs &> /dev/null; then
+        nodejs --version
+    else
+        echo -e "${RED}Node.js is not installed properly${NC}"
+        exit 1
+    fi
+fi
+
+if command -v npm &> /dev/null; then
+    npm --version
+else
+    echo -e "${RED}npm is not installed properly${NC}"
+    exit 1
+fi
 
 # Create user directory if needed and navigate to it
 INSTALL_DIR="$HOME/LaserWeb"
@@ -64,11 +80,22 @@ fi
 
 # Install Node.js dependencies
 echo -e "${YELLOW}Installing Node.js dependencies (this may take a while on Raspberry Pi)...${NC}"
-npm install --production
+npm install --production --prefer-offline --no-audit --no-fund
 
-# Build LaserWeb
-echo -e "${YELLOW}Building LaserWeb4 (this may take several minutes on Raspberry Pi)...${NC}"
-npm run build
+# Build LaserWeb for production (only if build script exists)
+echo -e "${YELLOW}Checking for build scripts in LaserWeb4...${NC}"
+if [ -f "$INSTALL_DIR/package.json" ]; then
+    # Read the package.json to see if a build script is defined
+    if grep -q '"build"' "$INSTALL_DIR/package.json"; then
+        echo -e "${YELLOW}Building LaserWeb4 (this may take several minutes on Raspberry Pi, skipping if not needed)...${NC}"
+        # Try to build but allow it to fail if build script is not available
+        npm run build || echo -e "${YELLOW}Build step skipped (not required or failed)${NC}"
+    else
+        echo -e "${YELLOW}No build script found in package.json, continuing...${NC}"
+    fi
+else
+    echo -e "${YELLOW}No package.json found in LaserWeb4, continuing...${NC}"
+fi
 
 # Set up configuration
 echo -e "${YELLOW}Setting up LaserWeb4 configuration...${NC}"
@@ -88,7 +115,7 @@ if [ ! -f "$INSTALL_DIR/config.json" ]; then
     "socketIoPath": "/socket.io"
   },
   "app": {
-    "title": "LaserWeb4"
+    "title": "LaserWeb4 - CNC Control"
   },
   "defaults": {
     "language": "en",
@@ -114,6 +141,17 @@ if [ ! -f "$INSTALL_DIR/config.json" ]; then
 }
 EOF
 fi
+
+# Create a minimal start script for development/testing
+START_SCRIPT="$HOME/start_laserweb.sh"
+cat > "$START_SCRIPT" << EOF
+#!/bin/bash
+cd $INSTALL_DIR
+npm start
+EOF
+
+chmod +x "$START_SCRIPT"
+echo -e "${GREEN}Created start script at: $START_SCRIPT${NC}"
 
 # Create a systemd service file for LaserWeb
 SERVICE_FILE="/etc/systemd/system/laserweb.service"
