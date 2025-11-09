@@ -92,20 +92,21 @@ Then log out and log back in to apply the permissions. After this, your cameras 
 - Full machine control interface
 - Point recording and DXF export
 
-### Raspberry Pi Setup:
-For Raspberry Pi 3 with Bookworm OS, use the installation script:
+### For Raspberry Pi Setup:
+For Raspberry Pi systems with Bookworm OS, the universal installer automatically detects and configures appropriately:
 ```bash
-cd rpi3_bookworm
-./rpi_install_bookworm.sh
+cd dependencies/
+chmod +x install_dependencies_universal.sh
+./install_dependencies_universal.sh
 ```
-This will install dependencies and set up a systemd service to start the Flask GUI automatically on boot.
+If detected as a Raspberry Pi, this will install dependencies and optionally set up a systemd service to auto-start the Flask GUI on boot.
 
 To start manually (after installation):
 ```bash
-cd rpi3_bookworm
-./start_comparatron.sh
+source ~/comparatron_env/bin/activate
+python3 ~/comparatron-optimised/main.py
 ```
-This will start the Flask server and optionally open the browser if on a desktop system.
+This will start the Flask server and the web interface will be accessible at the address shown in the terminal.
 
 ### Running with LaserWeb4:
 LaserWeb4 can run simultaneously on the same Raspberry Pi. It's available in the laserweb4 folder:
@@ -121,5 +122,16 @@ cd laserweb4
 All documentation is located in the `documentation/` folder including:
 - Project roadmap and optimization summary
 - Windows executable creation guide
+- GitHub setup guide for large projects with Git LFS
 - Completion notes
 - Original README with usage instructions
+
+### Universal Installation (Recommended):
+For automatic system detection (Fedora, Raspberry Pi, or other Linux systems):
+```bash
+cd dependencies/
+chmod +x install_dependencies_universal.sh
+./install_dependencies_universal.sh
+```
+This script automatically detects your system type and installs the appropriate dependencies.
+
