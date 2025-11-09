@@ -104,11 +104,26 @@ fi
 echo -e "${YELLOW}Removing installed Python packages...${NC}"
 
 # Remove user-installed packages that might conflict
-for pkg in numpy flask pillow pyserial ezdxf dearpygui opencv-python opencv-python-headless pyinstaller serial-tools laserweb; do
-    if python3 -m pip uninstall -y $pkg 2>/dev/null; then
-        echo -e "${GREEN}Uninstalled $pkg${NC}"
+# Also check for variations in package names
+packages_to_remove="numpy flask pillow PIL pyserial ezdxf dearpygui opencv-python opencv-python-headless cv2 pyinstaller serial-tools laserweb"
+
+for pkg in $packages_to_remove; do
+    # For PIL, also check for Pillow as they might be installed under different names
+    if [ "$pkg" = "PIL" ] || [ "$pkg" = "PIL" ]; then
+        # Try both pillow and PIL/Pillow
+        python3 -m pip uninstall -y pillow PIL Pillow 2>/dev/null
+        python3 -m pip uninstall -y PIL 2>/dev/null
+        echo -e "${GREEN}Attempted to remove pillow-related packages${NC}"
+    elif [ "$pkg" = "cv2" ]; then
+        # CV2 is usually installed as opencv-python packages
+        python3 -m pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python 2>/dev/null
+        echo -e "${GREEN}Attempted to remove opencv-related packages${NC}"
     else
-        echo -e "${YELLOW}$pkg not found or couldn't be removed${NC}"
+        if python3 -m pip show $pkg &> /dev/null; then
+            python3 -m pip uninstall -y $pkg 2>/dev/null && echo -e "${GREEN}Uninstalled $pkg${NC}"
+        else
+            echo -e "${YELLOW}$pkg not found${NC}"
+        fi
     fi
 done
 

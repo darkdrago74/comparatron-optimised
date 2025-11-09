@@ -2,6 +2,20 @@
 
 This folder contains the necessary scripts and information to set up Comparatron on different systems.
 
+## Installation Scripts:
+
+### For All Systems (Universal - Recommended):
+- `install_dependencies_universal.sh` - Automatic system detection and optimized installation for any Linux distribution (Fedora, RPi, etc.)
+
+### System-Specific:
+- `fedora_install_simple.sh` - Fedora-specific optimized installation
+
+### Legacy:
+- `install_dependencies_generic.sh` - Basic installation for other systems
+
+### System Management:
+- `uninstall.sh` - Complete removal of all Comparatron and LaserWeb4 components
+
 ## Important Steps Before Running
 
 ### For Fedora Systems:
