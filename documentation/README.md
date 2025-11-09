@@ -12,6 +12,7 @@ These documents relate to older development phases that have been superseded by 
 
 ## Current Technical Documentation:
 - `WINDOWS_EXECUTABLE.md` - Instructions for creating Windows executables with PyInstaller
+- `GITHUB_SETUP_GUIDE.md` - Guide for setting up Git and GitHub for large projects with Git LFS
 
 ## Current Project Status:
 - Latest implementation uses Flask web interface
