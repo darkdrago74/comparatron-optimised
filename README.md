@@ -64,6 +64,20 @@ cd dependencies/
 
 This will remove all services, virtual environments, and installed packages related to both Comparatron and LaserWeb4.
 
+## Prerequisites
+
+Before installing Comparatron, ensure you have these system dependencies installed:
+
+### For Fedora Systems:
+```bash
+sudo dnf install python3 python3-pip python3-devel git nodejs npm nginx
+```
+
+### For Raspberry Pi (Bookworm):
+```bash
+sudo apt install python3 python3-pip python3-dev git nodejs npm nginx
+```
+
 ### Camera Access on Linux/Fedora:
 If cameras are not detected, you may need to add your user to the video group:
 ```bash
