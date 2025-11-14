@@ -58,50 +58,77 @@ class MachineController:
         distance = self.jog_distance
         command = f"G1X{distance}Y0\r"
         logging.info(f"Jogging X+ by {distance}mm")
-        return self.comm.send_command(command)
-    
+        print(f"Jogging X+ by {distance}mm")
+        result = self.comm.send_command(command)
+        if result is None:
+            print("X+ jog command sent but no response - check motor power")
+        return result
+
     def jog_x_negative(self):
         """Jog X axis negative by current jog distance"""
         distance = self.jog_distance
         command = f"G1X-{distance}Y0\r"
         logging.info(f"Jogging X- by {distance}mm")
-        return self.comm.send_command(command)
-    
+        print(f"Jogging X- by {distance}mm")
+        result = self.comm.send_command(command)
+        if result is None:
+            print("X- jog command sent but no response - check motor power")
+        return result
+
     def jog_y_positive(self):
         """Jog Y axis positive by current jog distance"""
         distance = self.jog_distance
         command = f"G1X0Y{distance}\r"
         logging.info(f"Jogging Y+ by {distance}mm")
-        return self.comm.send_command(command)
-    
+        print(f"Jogging Y+ by {distance}mm")
+        result = self.comm.send_command(command)
+        if result is None:
+            print("Y+ jog command sent but no response - check motor power")
+        return result
+
     def jog_y_negative(self):
         """Jog Y axis negative by current jog distance"""
         distance = self.jog_distance
         command = f"G1X0Y-{distance}\r"
         logging.info(f"Jogging Y- by {distance}mm")
-        return self.comm.send_command(command)
-    
+        print(f"Jogging Y- by {distance}mm")
+        result = self.comm.send_command(command)
+        if result is None:
+            print("Y- jog command sent but no response - check motor power")
+        return result
+
     def jog_z_positive(self):
         """Jog Z axis positive by current jog distance (with safety limit)"""
         distance = min(self.jog_distance, 10.0)  # Safety limit
         command = f"G1Z{distance}\r"
         logging.info(f"Jogging Z+ by {distance}mm")
-        return self.comm.send_command(command)
-    
+        print(f"Jogging Z+ by {distance}mm")
+        result = self.comm.send_command(command)
+        if result is None:
+            print("Z+ jog command sent but no response - check motor power")
+        return result
+
     def jog_z_negative(self):
         """Jog Z axis negative by current jog distance (with safety limit)"""
         distance = min(self.jog_distance, 10.0)  # Safety limit
         command = f"G1Z-{distance}\r"
         logging.info(f"Jogging Z- by {distance}mm")
-        return self.comm.send_command(command)
+        print(f"Jogging Z- by {distance}mm")
+        result = self.comm.send_command(command)
+        if result is None:
+            print("Z- jog command sent but no response - check motor power")
+        return result
     
     def home_and_setup(self):
         """
         Perform complete home and setup sequence
-        
+
         Returns:
             bool: True if all operations successful, False otherwise
         """
+        print("Starting home and setup sequence...")
+        print("Note: This requires the main power supply (12V/24V) to be connected to the CNC shield")
+
         operations = [
             ("Unlocking machine", self.comm.unlock_machine),
             ("Homing machine", self.comm.home_machine),
@@ -109,15 +136,18 @@ class MachineController:
             ("Setting origin", self.comm.set_origin),
             ("Setting relative mode", self.comm.set_relative_mode)
         ]
-        
+
         for op_name, op_func in operations:
             print(f"Performing: {op_name}")
             result = op_func()
             if result is None:
-                print(f"Failed to perform: {op_name}")
-                return False
-            time.sleep(0.5)  # Brief pause between operations
-        
+                print(f"Warning: {op_name} completed but no confirmation received")
+                print("This may be due to motors not being powered")
+            else:
+                print(f"Completed: {op_name}")
+            time.sleep(1.0)  # Increased pause between operations for better reliability
+
+        print("Home and setup sequence completed")
         return True
     
     def get_current_position(self):

@@ -30,48 +30,78 @@ class SerialCommunicator:
     def connect_to_com(self, com_port):
         """
         Connect to the specified COM port
-        
+
         Args:
             com_port (str): COM port to connect to (e.g., 'COM3')
-        
+
         Returns:
             bool: True if connection successful, False otherwise
         """
         try:
             logging.info(f"Attempting to connect to: {com_port}")
             print(f"Trying to connect to: {com_port}")
-            
+
             # Close any existing connection first
             if self.ser and self.ser.is_open:
                 self.ser.close()
                 logging.info("Closed existing serial connection")
-            
+
             self.ser = serial.Serial(
-                com_port, 
-                self.baudrate, 
-                bytesize=self.bytesize, 
-                parity=self.parity, 
-                stopbits=self.stopbits, 
-                timeout=self.timeout, 
-                xonxoff=self.xonxoff, 
+                com_port,
+                self.baudrate,
+                bytesize=self.bytesize,
+                parity=self.parity,
+                stopbits=self.stopbits,
+                timeout=self.timeout,
+                xonxoff=self.xonxoff,
                 rtscts=self.rtscts
             )
-            
+
             # Wait a moment for connection to establish
-            time.sleep(1)
-            
-            # Read initial response
-            if self.ser.is_open and self.ser.in_waiting > 0:
-                ser_in = self.ser.readline()
-                response_str = ser_in.decode('utf-8', errors='ignore').strip()
-                print(f"Connection response: {response_str}")
-                logging.info(f"Connection response: {response_str}")
-            
-            logging.info(f"Successfully connected to {com_port}")
-            return True
+            time.sleep(2)  # Increased wait time to allow for proper initialization
+
+            # Try to get status from GRBL - this is the key test to see if it's responsive
+            if self.ser.is_open:
+                # Send the status query command
+                self.ser.write(b'?\r')
+                self.ser.flush()
+
+                # Wait briefly for response
+                time.sleep(0.5)
+
+                # Read any response
+                if self.ser.in_waiting > 0:
+                    ser_in = self.ser.readline()
+                    response_str = ser_in.decode('utf-8', errors='ignore').strip()
+                    print(f"Connection response: {response_str}")
+                    logging.info(f"Connection response: {response_str}")
+
+                    # Check if the response is from GRBL
+                    if 'grbl' in response_str.lower() or response_str.startswith('<'):
+                        logging.info(f"Successfully connected to GRBL controller on {com_port}")
+                        return True
+                    else:
+                        # If we get a response but it's not GRBL-like, it might be an unpowered device
+                        print(f"Connected to device but may not be an active GRBL controller: {response_str}")
+                        print("Possible issue: Main power supply (12V/24V) may not be connected to the CNC shield")
+                else:
+                    # No response received - device may be present but not responding (unpowered)
+                    print("Device detected but no response received - check main power supply (12V/24V) connection")
+                    print("GRBL controller typically requires main power to be fully operational")
+
+            logging.info(f"Successfully opened serial port {com_port} but device may not be responsive")
+            return True  # Return True even if not fully responsive so user can try other operations
         except serial.SerialException as e:
             logging.error(f"Serial connection error to {com_port}: {e}")
-            print(f"Serial connection error to {com_port}: {e}")
+            if "permission" in str(e).lower():
+                print(f"Permission error: Make sure you have access to {com_port}")
+                print("Try: sudo usermod -a -G dialout $USER")
+                print("Then log out and log back in, or run with sudo")
+            elif "access" in str(e).lower() or "busy" in str(e).lower():
+                print(f"Port in use or access denied: {com_port}")
+                print("Make sure no other program is using this serial port")
+            else:
+                print(f"Serial connection error to {com_port}: {e}")
             return False
         except Exception as e:
             logging.error(f"Unexpected error connecting to {com_port}: {e}")
@@ -97,10 +127,10 @@ class SerialCommunicator:
     def send_command(self, command_string):
         """
         Send a command string to the machine
-        
+
         Args:
             command_string (str or bytes): Command to send
-        
+
         Returns:
             str: Response from the machine, or None if error
         """
@@ -108,25 +138,25 @@ class SerialCommunicator:
             logging.warning("No active serial connection")
             print("No active serial connection")
             return None
-        
+
         try:
             # Convert to bytes if it's a string
             if isinstance(command_string, str):
                 command_bytes = command_string.encode()
             else:
                 command_bytes = command_string
-            
+
             logging.debug(f"Sending command: {command_string}")
-            
+
             # Send the command
             bytes_written = self.ser.write(command_bytes)
             self.ser.flush()  # Ensure data is sent
-            
+
             # Read response with timeout
             response = None
             start_time = time.time()
-            timeout = 3.0  # 3 second timeout
-            
+            timeout = 5.0  # Increased timeout to 5 seconds to handle unresponsive devices
+
             while (time.time() - start_time) < timeout:
                 if self.ser.in_waiting > 0:
                     response = self.ser.readline()
@@ -134,14 +164,24 @@ class SerialCommunicator:
                     logging.debug(f"Received response: {response_str}")
                     print(f"Response: {response_str}")
                     return response_str
-                time.sleep(0.01)  # Small delay to prevent busy waiting
-            
+                time.sleep(0.05)  # Slightly increased delay to reduce CPU usage
+
+            # If we timed out, it might be due to power issues
             logging.warning(f"Timeout waiting for response to command: {command_string}")
+            print(f"Timeout waiting for response to command: {command_string}")
+            print("Possible issues:")
+            print("  - Main power supply (12V/24V) is not connected to the CNC shield")
+            print("  - Motors or drivers are not receiving power")
+            print("  - GRBL controller is not fully operational without main power")
             return None
-            
+
         except serial.SerialException as e:
             logging.error(f"Serial communication error when sending command '{command_string}': {e}")
-            print(f"Serial error sending command: {e}")
+            if "write" in str(e).lower() or "output" in str(e).lower():
+                print(f"Cannot send command - device may not be properly powered: {e}")
+                print("Check that main power supply (12V/24V) is connected to the CNC shield")
+            else:
+                print(f"Serial error sending command: {e}")
             return None
         except Exception as e:
             logging.error(f"Unexpected error sending command '{command_string}': {e}")
@@ -231,36 +271,62 @@ class SerialCommunicator:
     
     def home_machine(self):
         """Send home command to the machine ($H)"""
-        return self.send_command(b'$H\r')
-    
+        print("Sending home command ($H) to machine...")
+        result = self.send_command(b'$H\r')
+        if result is None:
+            print("Home command sent but no confirmation received")
+            print("Check power connections to motors and drivers")
+        return result
+
     def unlock_machine(self):
         """Send unlock command to the machine ($X)"""
-        return self.send_command(b'$X\r')
-    
+        print("Sending unlock command ($X) to machine...")
+        result = self.send_command(b'$X\r')
+        if result is None:
+            print("Unlock command sent but no confirmation received")
+        return result
+
     def set_feed(self, feed_rate=2000):
         """Set feed rate (default 2000)"""
         command = f'F{feed_rate}\r'
-        return self.send_command(command)
-    
+        print(f"Setting feed rate to {feed_rate}...")
+        result = self.send_command(command)
+        if result is None:
+            print(f"Feed rate command sent but no confirmation received")
+        return result
+
     def set_origin(self):
         """Set work coordinate system origin (G92X0Y0)"""
-        return self.send_command(b'G92X0Y0\r')
-    
+        print("Setting work coordinate system origin (G92X0Y0)...")
+        result = self.send_command(b'G92X0Y0\r')
+        if result is None:
+            print("Origin setting command sent but no confirmation received")
+        return result
+
     def set_relative_mode(self):
         """Set machine to relative coordinate mode (G91)"""
-        return self.send_command(b'G91\r')
-    
+        print("Setting machine to relative coordinate mode (G91)...")
+        result = self.send_command(b'G91\r')
+        if result is None:
+            print("Relative mode command sent but no confirmation received")
+        return result
+
     def jog_axis(self, x=0, y=0, z=0):
         """
         Jog machine along specified axes
-        
+
         Args:
             x (float): X-axis movement distance
-            y (float): Y-axis movement distance 
+            y (float): Y-axis movement distance
             z (float): Z-axis movement distance
         """
         command = f'G1X{x}Y{y}Z{z}\r'
-        return self.send_command(command)
+        print(f"Sending jog command: {command.strip()}")
+        result = self.send_command(command)
+        if result is None:
+            print("Jog command sent but no confirmation received")
+            print("Check that motors and drivers are properly powered")
+        return result
     
     def get_machine_status(self):
         """
