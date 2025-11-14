@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Comparatron Universal Installation Script
+# Comparatron Universal Installation Script (Simplified with Recombination)
 # Automatically detects system type and installs appropriate dependencies
-# Also can optionally set up auto-start service for Raspberry Pi systems
+# Can recombine virtual environment from chunks if available
 
 # Colors for output
 RED='\033[0;31m'
@@ -11,7 +11,83 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=== Comparatron Universal Installation ===${NC}"
+echo -e "${BLUE}=== Comparatron Universal Installation (Simplified) ===${NC}"
+
+# Function to setup virtual environment
+setup_venv() {
+    echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
+
+    # Check if virtual environment exists in parent directory
+    if [ -d "../comparatron_env" ]; then
+        echo -e "${GREEN}Virtual environment already exists in parent directory${NC}"
+        source ../comparatron_env/bin/activate
+    # Check if we have venv_splits directory with the main archive
+    elif [ -d "venv_splits" ] && [ -f "venv_splits/comparatron_env_main.tar.gz" ]; then
+        echo -e "${YELLOW}Found chunked virtual environment, recombining...${NC}"
+
+        # Extract the main tar.gz file to create the virtual environment
+        echo -e "${YELLOW}Extracting virtual environment from archive...${NC}"
+        cd ..
+        if tar -xzf "dependencies/venv_splits/comparatron_env_main.tar.gz"; then
+            # Verify and activate
+            if [ -d "comparatron_env" ]; then
+                echo -e "${GREEN}Virtual environment successfully recombined!${NC}"
+                source comparatron_env/bin/activate
+                chmod +x comparatron_env/bin/activate
+            else
+                echo -e "${RED}Error: Failed to extract virtual environment - extracted directory not found${NC}"
+                python3 -m venv comparatron_env
+                source comparatron_env/bin/activate
+            fi
+        else
+            echo -e "${RED}Error: Failed to extract virtual environment archive${NC}"
+            python3 -m venv comparatron_env
+            source comparatron_env/bin/activate
+        fi
+        cd dependencies
+    # If there are chunk files but no combined archive, try recombining
+    elif [ -d "venv_splits" ] && [ -f "venv_splits/comparatron_env_part_aa" ]; then
+        echo -e "${YELLOW}Found chunked virtual environment files, recombining...${NC}"
+
+        # Combine all chunk files to create the main archive
+        cd venv_splits
+        if cat comparatron_env_part_* > ../comparatron_env_main.tar.gz; then
+            cd ..
+            # Extract the recombined archive to parent directory
+            echo -e "${YELLOW}Extracting virtual environment from recombined archive...${NC}"
+            cd ..
+            if tar -xzf "dependencies/comparatron_env_main.tar.gz"; then
+                # Verify extraction and activate
+                if [ -d "comparatron_env" ]; then
+                    echo -e "${GREEN}Virtual environment successfully recombined!${NC}"
+                    source comparatron_env/bin/activate
+                    chmod +x comparatron_env/bin/activate
+                else
+                    echo -e "${RED}Error: Failed to extract virtual environment - extracted directory not found${NC}"
+                    python3 -m venv comparatron_env
+                    source comparatron_env/bin/activate
+                fi
+            else
+                echo -e "${RED}Error: Failed to extract virtual environment from recombined archive${NC}"
+                python3 -m venv comparatron_env
+                source comparatron_env/bin/activate
+            fi
+        else
+            echo -e "${RED}Error: Failed to recombine virtual environment splits${NC}"
+            python3 -m venv comparatron_env
+            source comparatron_env/bin/activate
+        fi
+        cd dependencies
+    # If no venv exists and no splits exist, show error
+    else
+        echo -e "${RED}Error: Neither virtual environment nor split files found${NC}"
+        echo -e "${YELLOW}Expected to find either: ../comparatron_env directory OR${NC}"
+        echo -e "${YELLOW}  - dependencies/venv_splits/comparatron_env_main.tar.gz OR${NC}"
+        echo -e "${YELLOW}  - dependencies/venv_splits/comparatron_env_part_* files${NC}"
+        echo -e "${RED}Please run the split_venv.sh script first to create the split files${NC}"
+        exit 1
+    fi
+}
 
 # Detect the operating system
 detect_system() {
@@ -74,9 +150,7 @@ install_debian() {
     # Install system dependencies - avoid conflicting packages
     echo -e "${YELLOW}Installing system dependencies...${NC}"
     if [ -n "$SUDO" ]; then
-        # Try to install with libilmbase-dev and libopenexr-dev, which are the more compatible versions on Debian
         $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libatlas3-base || {
-            # If that fails due to conflicts, try to skip the problematic packages
             echo -e "${YELLOW}Attempting to resolve dependency conflicts...${NC}"
             $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev || {
                 echo -e "${YELLOW}Continuing without some optional dependencies...${NC}"
@@ -88,42 +162,6 @@ install_debian() {
             echo -e "${RED}Error: python3 is not available and no sudo access${NC}"
             exit 1
         fi
-    fi
-    
-    # Create and activate virtual environment
-    echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
-    python3 -m venv comparatron_env
-    source comparatron_env/bin/activate
-
-    # Upgrade pip
-    echo -e "${YELLOW}Upgrading pip...${NC}"
-    python3 -m pip install --upgrade pip
-
-    # Install Python packages - use piwheels for ARM/RPi if available
-    echo -e "${YELLOW}Installing required Python packages...${NC}"
-
-    # Install packages that have ARM-compatible versions first
-    python3 -m pip install --prefer-binary numpy
-
-    # Install OpenCV with timeout and ARM-specific optimizations
-    echo -e "${YELLOW}Installing OpenCV headless version (optimized for ARM if needed)...${NC}"
-    if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
-        # For RPi use piwheels specifically
-        python3 -m pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
-            echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
-        }
-    else
-        python3 -m pip install --prefer-binary opencv-python-headless || {
-            echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
-        }
-    fi
-
-    # Install remaining packages
-    if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
-        # Use piwheels for ARM packages on RPi
-        python3 -m pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
-    else
-        python3 -m pip install --prefer-binary flask pillow pyserial ezdxf pyinstaller
     fi
 }
 
@@ -148,21 +186,8 @@ install_fedora() {
     # Install system dependencies
     echo -e "${YELLOW}Installing system dependencies...${NC}"
     if [ -n "$SUDO" ]; then
-        $SUDO dnf install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev gcc gcc-c++ libatlas3-base
+        $SUDO dnf install -y python3 python3-pip python3-devel python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev gcc gcc-c++ libatlas3-base
     fi
-    
-    # Create and activate virtual environment
-    echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
-    python3 -m venv comparatron_env
-    source comparatron_env/bin/activate
-    
-    # Upgrade pip
-    echo -e "${YELLOW}Upgrading pip...${NC}"
-    python3 -m pip install --upgrade pip
-    
-    # Install Python packages
-    echo -e "${YELLOW}Installing required Python packages...${NC}"
-    python3 -m pip install --prefer-binary numpy flask pillow pyserial ezdxf opencv-python-headless pyinstaller
 }
 
 # Generic installation (for any system)
@@ -174,19 +199,6 @@ install_generic() {
         echo -e "${RED}Error: Python 3 is not installed.${NC}"
         exit 1
     fi
-    
-    # Create and activate virtual environment
-    echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
-    python3 -m venv comparatron_env
-    source comparatron_env/bin/activate
-    
-    # Upgrade pip
-    echo -e "${YELLOW}Upgrading pip...${NC}"
-    python3 -m pip install --upgrade pip
-    
-    # Install Python packages only (assumes system dependencies are already satisfied)
-    echo -e "${YELLOW}Installing required Python packages...${NC}"
-    python3 -m pip install --prefer-binary numpy flask pillow pyserial ezdxf opencv-python-headless pyinstaller
 }
 
 # Set up auto-start service (specific to Raspberry Pi)
@@ -227,20 +239,57 @@ WantedBy=multi-user.target"
         # Add user to video group for camera access
         $SUDO usermod -a -G video $USER
         echo -e "${GREEN}User added to video group for camera access${NC}"
+
+        # Add user to dialout group for serial port access (needed for Arduino/GRBL communication)
+        $SUDO usermod -a -G dialout $USER
+        echo -e "${GREEN}User added to dialout group for serial port access${NC}"
+        echo -e "${YELLOW}Note: You may need to log out and log back in, or reboot, for the group changes to take effect${NC}"
     else
-        echo -e "${YELLOW}Service setup only performed on Raspberry Pi systems${NC}"
+        # For non-Raspberry Pi systems, add both video and dialout groups
+        if command -v sudo &> /dev/null; then
+            $SUDO usermod -a -G video $USER
+            echo -e "${GREEN}User added to video group for camera access${NC}"
+            $SUDO usermod -a -G dialout $USER
+            echo -e "${GREEN}User added to dialout group for serial port access${NC}"
+            echo -e "${YELLOW}Note: You may need to log out and log back in, or reboot, for the group changes to take effect${NC}"
+        fi
     fi
+}
+
+# Test the installation
+test_installation() {
+    echo -e "${YELLOW}Testing the installation...${NC}"
+
+    for pkg in numpy flask pillow pyserial ezdxf cv2; do
+        if [ "$pkg" = "cv2" ]; then
+            IMP="cv2 as cv" 
+        elif [ "$pkg" = "pillow" ]; then
+            IMP="PIL as Image"
+        elif [ "$pkg" = "pyserial" ]; then
+            IMP="serial"
+        else
+            IMP="$pkg"
+        fi
+        
+        if python3 -c "import $IMP" &> /dev/null; then
+            echo -e "${GREEN}✓ $pkg working${NC}"
+        else
+            # For OpenCV, it might be acceptable that it's not available during installation (takes too long)
+            if [ "$pkg" = "cv2" ]; then
+                echo -e "${YELLOW}? $pkg may not be available (can take long time to install on RPi)${NC}"
+            else
+                echo -e "${RED}✗ $pkg not working${NC}"
+            fi
+        fi
+    done
 }
 
 # Main installation process
 detect_system
 
+# Call appropriate install function based on detected system
 case "$DISTRO_TYPE" in
-    "raspberry_pi")
-        install_debian
-        setup_service
-        ;;
-    "debian")
+    "raspberry_pi"|"debian")
         install_debian
         ;;
     "fedora")
@@ -251,37 +300,65 @@ case "$DISTRO_TYPE" in
         ;;
 esac
 
-# Test the installation
-echo -e "${YELLOW}Testing the installation...${NC}"
+# Set up virtual environment with recombination support
+setup_venv
 
-for pkg in numpy flask pillow pyserial ezdxf cv2; do
-    if [ "$pkg" = "cv2" ]; then
-        IMP="cv2 as cv"
-    elif [ "$pkg" = "pillow" ]; then
-        IMP="PIL as Image"
-    elif [ "$pkg" = "pyserial" ]; then
-        IMP="serial"
-    else
-        IMP="$pkg"
-    fi
-    
-    if python3 -c "import $IMP" &> /dev/null; then
-        echo -e "${GREEN}✓ $pkg working${NC}"
-    else
-        # For OpenCV, it might be acceptable that it's not available during installation (takes too long)
-        if [ "$pkg" = "cv2" ]; then
-            echo -e "${YELLOW}? $pkg may not be available (can take long time to install on RPi)${NC}"
-        else
-            echo -e "${RED}✗ $pkg not working${NC}"
-        fi
-    fi
-done
+# Upgrade pip
+echo -e "${YELLOW}Upgrading pip...${NC}"
+python3 -m pip install --upgrade pip
+
+# Install Python packages - use piwheels for ARM/RPi if available
+echo -e "${YELLOW}Installing required Python packages...${NC}"
+
+# Install packages that have ARM-compatible versions first
+pip install --prefer-binary numpy
+
+# Install OpenCV with timeout and ARM-specific optimizations
+echo -e "${YELLOW}Installing OpenCV headless version (optimized for ARM if needed)...${NC}"
+if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
+    # For RPi use piwheels specifically
+    timeout 120 pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
+        echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
+    }
+else
+    timeout 120 pip install --prefer-binary opencv-python-headless || {
+        echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
+    }
+fi
+
+# Install remaining packages
+if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
+    # Use piwheels for ARM packages on RPi
+    pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
+else
+    pip install --prefer-binary flask pillow pyserial ezdxf pyinstaller
+fi
+
+# Create a temporary requirements file in case of issues
+cat > requirements.txt << EOF
+numpy
+flask
+pillow
+pyserial
+ezdxf
+opencv-python-headless
+pyinstaller
+EOF
+
+# Install from requirements to handle any remaining dependency issues with ARM-optimized packages
+timeout 30 pip install --prefer-binary -r requirements.txt || echo -e "${YELLOW}Some packages may have failed but continuing...${NC}"
+
+# Clean up
+rm requirements.txt
+
+# Test the installation
+test_installation
 
 echo -e "${GREEN}=== Installation completed ===${NC}"
 echo -e "${GREEN}To use Comparatron:${NC}"
 echo -e "${GREEN}1. Make sure the Comparatron folder is in your home directory as '/home/$USER/comparatron-optimised'${NC}"
-echo -e "${GREEN}2. Run: source ~/comparatron_env/bin/activate && python3 ~/comparatron-optimised/main.py${NC}"
-echo -e "${GREEN}3. Access the interface at: http://localhost:5001${NC}"
+echo -e "${GREEN}2. The web interface will be available at: http://localhost:5001${NC}"
+echo -e "${GREEN}3. To manually start: cd .. && source comparatron_env/bin/activate && python3 main.py${NC}"
 echo -e "${GREEN}${NC}"
 
 if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
@@ -290,5 +367,8 @@ if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
 fi
 
 echo -e "${GREEN}${NC}"
-echo -e "${GREEN}Note: After adding to video group (on RPi), log out and log back in to access cameras.${NC}"
-echo -e "${GREEN}The main Comparatron interface is Flask-based (web interface).${NC}"
+echo -e "${YELLOW}IMPORTANT:${NC}"
+echo -e "${YELLOW}  - You have been added to the dialout group for serial port access${NC}"
+echo -e "${YELLOW}  - You need to logout and login again for the group changes to take effect${NC}"
+echo -e "${YELLOW}  - After logging in, the Arduino/GRBL shield will be accessible via serial${NC}"
+echo -e "${YELLOW}  - The main Comparatron interface is Flask-based (web interface).${NC}"

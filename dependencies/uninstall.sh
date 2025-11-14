@@ -78,8 +78,8 @@ fi
 
 # Remove Python virtual environments
 echo -e "${YELLOW}Removing Python virtual environments...${NC}"
-if [ -d "$HOME/comparatron_env" ]; then
-    rm -rf "$HOME/comparatron_env"
+if [ -d "$HOME/comparatron-optimised/dependencies/comparatron_env" ]; then
+    rm -rf "$HOME/comparatron-optimised/dependencies/comparatron_env"
     echo -e "${GREEN}Removed comparatron_env virtual environment${NC}"
 else
     echo -e "${YELLOW}Comparatron virtual environment not found${NC}"
