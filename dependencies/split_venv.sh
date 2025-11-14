@@ -12,8 +12,8 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== Virtual Environment Zip and Split for GitHub ===${NC}"
 
-# Check if virtual environment exists (in the same directory)
-VENV_PATH="./comparatron_env"
+# Check if virtual environment exists (in the parent directory)
+VENV_PATH="../comparatron_env"
 if [ ! -d "$VENV_PATH" ]; then
     echo -e "${RED}Error: Virtual environment not found at $VENV_PATH${NC}"
     echo -e "${YELLOW}Run the installation script first to create the virtual environment${NC}"
@@ -41,17 +41,17 @@ echo -e "${YELLOW}Previous split files and archives have been removed${NC}"
 echo -e "${YELLOW}Virtual environment size: $(du -sh "$VENV_PATH" | cut -f1)${NC}"
 echo -e "${YELLOW}Compressing and splitting virtual environment...${NC}"
 
-# Create a compressed tar of the virtual environment (in the same directory)
+# Create a compressed tar of the virtual environment (from parent directory)
 MAIN_TAR="$SPLITS_DIR/comparatron_env_main.tar.gz"
 echo -e "${YELLOW}Creating compressed archive...${NC}"
-tar -czf "$MAIN_TAR" -C "." "comparatron_env"
+tar -czf "$MAIN_TAR" -C ".." "comparatron_env"
 
 # Get the size of the compressed archive
 MAIN_SIZE=$(du -sh "$MAIN_TAR" | cut -f1)
 echo -e "${GREEN}Compressed virtual environment size: $MAIN_SIZE${NC}"
 
-# Split into 45MB chunks (leaving room for compression overhead)
-CHUNK_SIZE=45M
+# Split into 20MB chunks (to meet GitHub 25MB limit)
+CHUNK_SIZE=20M
 echo -e "${YELLOW}Splitting into ${CHUNK_SIZE} chunks...${NC}"
 
 # Split the compressed archive
@@ -81,4 +81,4 @@ EOF
 
 echo -e "${GREEN}=== Virtual environment zipped and split successfully ===${NC}"
 echo -e "${GREEN}Upload all files in the $SPLITS_DIR/ folder to GitHub${NC}"
-echo -e "${GREEN}Each part is under 50MB and meets GitHub size limits${NC}"
+echo -e "${GREEN}Each part is under 25MB and meets GitHub size limits${NC}"
