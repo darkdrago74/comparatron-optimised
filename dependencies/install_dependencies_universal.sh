@@ -305,23 +305,23 @@ setup_venv
 
 # Upgrade pip
 echo -e "${YELLOW}Upgrading pip...${NC}"
-python3 -m pip install --upgrade pip
+../comparatron_env/bin/python -m pip install --upgrade pip
 
 # Install Python packages - use piwheels for ARM/RPi if available
 echo -e "${YELLOW}Installing required Python packages...${NC}"
 
 # Install packages that have ARM-compatible versions first
-pip install --prefer-binary numpy
+../comparatron_env/bin/python -m pip install --prefer-binary numpy
 
 # Install OpenCV with timeout and ARM-specific optimizations
 echo -e "${YELLOW}Installing OpenCV headless version (optimized for ARM if needed)...${NC}"
 if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
     # For RPi use piwheels specifically
-    timeout 120 pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
+    timeout 120 ../comparatron_env/bin/python -m pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
         echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
     }
 else
-    timeout 120 pip install --prefer-binary opencv-python-headless || {
+    timeout 120 ../comparatron_env/bin/python -m pip install --prefer-binary opencv-python-headless || {
         echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
     }
 fi
@@ -329,9 +329,9 @@ fi
 # Install remaining packages
 if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
     # Use piwheels for ARM packages on RPi
-    pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
+    ../comparatron_env/bin/python -m pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
 else
-    pip install --prefer-binary flask pillow pyserial ezdxf pyinstaller
+    ../comparatron_env/bin/python -m pip install --prefer-binary flask pillow pyserial ezdxf pyinstaller
 fi
 
 # Create a temporary requirements file in case of issues
@@ -346,7 +346,7 @@ pyinstaller
 EOF
 
 # Install from requirements to handle any remaining dependency issues with ARM-optimized packages
-timeout 30 pip install --prefer-binary -r requirements.txt || echo -e "${YELLOW}Some packages may have failed but continuing...${NC}"
+timeout 30 ../comparatron_env/bin/python -m pip install --prefer-binary -r requirements.txt || echo -e "${YELLOW}Some packages may have failed but continuing...${NC}"
 
 # Clean up
 rm requirements.txt
