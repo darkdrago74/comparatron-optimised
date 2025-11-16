@@ -51,47 +51,44 @@ This document describes the calibration procedures for the Comparatron optical c
 
 9. Repeat for both X and Y axes with multiple distances for accuracy
 
-### Step 2: Squareness Calibration
+### Step 2: Squareness/Orthogonality Calibration
 
 **Requirements:**
-- Precision 90° reference square
-- Ability to take measurements at multiple positions
+- Precision 90° reference square OR ability to measure orthogonality through motion
 
-**Procedure:**
+**Method 1: Using Precision Square Reference**
 1. Place precision square on machine table aligned with X/Y axes
 2. Use camera to capture image of square corner
-3. Mark two points along X-direction edge of the square: (X1, Y1) and (X2, Y1)
-4. Mark two points along Y-direction edge of the square: (X1, Y1) and (X1, Y2)
-5. Calculate the angle deviation using the formula:
+3. Mark three points: corner (X1, Y1), point along X-axis (X2, Y1), point along Y-axis (X1, Y2)
+4. Calculate the angle using the formula:
    ```
-   angle = arctan(|ΔY| / |ΔX|) * (180/π)
+   angle = arccos( (dot_product_of_vectors) / (magnitude_vector1 * magnitude_vector2) )
    ```
-   Where (X1,Y1) is the corner, (X2,Y1) is second X point, (X1,Y2) is second Y point
-
-6. If angle ≠ 90°, calculate squareness error:
+   Or simpler using tangent:
    ```
-   Squareness_error = Angle - 90°
+   angle = arctan2(|Y2-Y1|, |X2-X1|) * (180/π)
    ```
+   For a perfect square, this should equal 90°
+5. Squareness error = Measured_angle - 90°
 
-### Step 3: Orthogonality Measurement
-
-**Requirements:**
-- Machine movement capabilities
-- Camera positioning
-
-**Procedure:**
+**Method 2: Motion-Based Orthogonality Measurement**
 1. Home the machine: `$H`
-2. Position camera at (X1, Y1)
-3. Take measurement point
-4. Move Y-axis only: `G91 G0 Y50` (move 50mm in Y direction)
-5. Take second measurement point (X2, Y2)
-6. Move X-axis only (relative to starting position): `G90 G0 X(X1+50) Y(Y1)`
-7. Take third measurement point (X3, Y3)
-8. Calculate the deviation from orthogonality:
+2. Position camera and mark starting position (X1, Y1)
+3. Move Y-axis only: `G91 G0 Y100` (move 100mm in Y direction)
+4. Mark ending position (X2, Y2) - this should have same X coordinate if Y-axis is perfectly orthogonal
+5. Move back to origin: `G90 G0 X(X1) Y(Y1)`
+6. Move X-axis only: `G91 G0 X100` (move 100mm in X direction)
+7. Mark ending position (X3, Y3) - this should have same Y coordinate if X-axis is perfectly orthogonal
+8. Calculate orthogonality/squareness error:
    ```
-   Deviation_X = |X2 - X1|
-   Deviation_Y = |Y3 - Y1|
+   Deviation_when_moving_Y = |X2 - X1|  # This measures X-drift when moving Y
+   Deviation_when_moving_X = |Y3 - Y1|  # This measures Y-drift when moving X
+
+   Angular_error_X = arctan(Deviation_when_moving_Y / 100) * (180/π) degrees
+   Angular_error_Y = arctan(Deviation_when_moving_X / 100) * (180/π) degrees
    ```
+
+Both methods measure the same fundamental property - whether the axes are perpendicular to each other.
 
 ## Coordinate System Compensation Methods
 
@@ -163,10 +160,8 @@ Calibration data should be stored in a JSON configuration file:
     }
   },
   "geometric_calibration": {
-    "squareness_error_degrees": 0.000,
-    "squareness_measurement_distance": 100.0, // mm used for measurement
-    "orthogonality_x_on_y": 0.000, // mm deviation in X when moving Y
-    "orthogonality_y_on_x": 0.000, // mm deviation in Y when moving X
+    "squareness_error_degrees": 0.000,  // Deviation from 90° between X and Y axes
+    "squareness_measurement_distance": 100.0, // Distance used for measurement (mm)
     "reference_tool_used": "precision 90-degree square"
   },
   "measurement_accuracy": {
@@ -190,17 +185,24 @@ def apply_coordinate_correction(x_raw, y_raw, calibration_data):
     """
     Apply geometric corrections to raw coordinates
     """
-    # Apply squareness compensation
-    squareness_rad = math.radians(calibration_data['geometric_calibration']['squareness_error_degrees'])
-    
-    # Orthogonality compensation
-    ortho_x_on_y = calibration_data['geometric_calibration']['orthogonality_x_on_y']
-    ortho_y_on_x = calibration_data['geometric_calibration']['orthogonality_y_on_x']
-    
-    # Calculate corrected coordinates
-    x_corrected = x_raw + (y_raw * math.tan(squareness_rad)) + (y_raw * ortho_x_on_y)
-    y_corrected = y_raw + (x_raw * ortho_y_on_x)
-    
+    # Apply squareness/orthogonality compensation
+    # If axes are not perfectly orthogonal, we get a skew matrix transformation
+    squareness_error_degrees = calibration_data['geometric_calibration']['squareness_error_degrees']
+    squareness_rad = math.radians(squareness_error_degrees)
+
+    # For small angles, tan(squareness_error) ≈ squareness_error (in radians)
+    # The transformation accounts for the deviation from 90° between axes
+    # If axis X is tilted by angle α from true perpendicular to Y-axis:
+    # X_corrected = X_raw + Y_raw * sin(α) ≈ X_raw + Y_raw * α (for small α)
+    # Y_corrected = Y_raw (assuming Y-axis is reference)
+
+    # For symmetric squareness error where both axes might be tilted:
+    # We use half the total angular error for each axis correction
+    half_squareness_rad = squareness_rad / 2.0
+
+    x_corrected = x_raw + y_raw * math.tan(half_squareness_rad)  # Correct X-axis tilt
+    y_corrected = y_raw + x_raw * math.tan(half_squareness_rad)  # Correct Y-axis tilt
+
     return x_corrected, y_corrected
 
 def record_calibrated_point(x_pixel, y_pixel, calibration_data):
@@ -225,6 +227,11 @@ After applying calibrations:
 2. Compare against reference measurements
 3. Document accuracy improvements
 4. Store verification results in calibration file
+
+**Verification of Squareness Correction:**
+- Use a calibrated square to check 90° angles
+- Measure diagonal of a square drawn on the machine to verify consistent measurements
+- Measure multiple rectangles/squares at different positions to ensure calibration is uniform
 
 ## Recommended Calibration Schedule
 

@@ -114,29 +114,32 @@ def test_dxf_functionality():
 def test_dependencies_script():
     """Test if dependencies installation script exists and is executable"""
     print("\nTesting dependencies script...")
-    
-    script_path = "install_dependencies.sh"
-    if os.path.exists(script_path):
-        if os.access(script_path, os.X_OK):
-            print("✓ Dependencies installation script exists and is executable")
-            return True
-        else:
-            print("✗ Dependencies installation script exists but is not executable")
-            return False
-    else:
-        print("✗ Dependencies installation script does not exist")
-        return False
+
+    # Check for either of the actual script names used in the project (in dependencies directory)
+    script_paths = ["dependencies/install_dependencies_universal.sh", "dependencies/install_dependencies_generic.sh"]
+
+    for script_path in script_paths:
+        if os.path.exists(script_path):
+            if os.access(script_path, os.X_OK):
+                print(f"✓ Dependencies installation script exists and is executable ({script_path})")
+                return True
+            else:
+                print(f"✗ Dependencies installation script exists but is not executable ({script_path})")
+                return False
+
+    print("✗ Dependencies installation script does not exist")
+    return False
 
 def test_main_script_exists():
-    """Test if refactored main script exists"""
+    """Test if main script exists"""
     print("\nTesting main script...")
-    
-    main_script = "main_refactored.py"
+
+    main_script = "main.py"
     if os.path.exists(main_script):
-        print("✓ Refactored main script exists")
+        print("✓ Main script exists")
         return True
     else:
-        print("✗ Refactored main script does not exist")
+        print("✗ Main script does not exist")
         return False
 
 def run_all_tests():
