@@ -21,7 +21,7 @@ Comparatron is an advanced optical comparator that combines:
    cd comparatron-optimised
    ```
 
-   additionnaly before starting : 
+   additionally before starting :
    ### Permissions possible issues
 The installation script adds your user to required groups:
 - `dialout` group for serial port access
@@ -32,7 +32,7 @@ If experiencing permission issues:
 sudo usermod -a -G dialout $USER
 sudo usermod -a -G video $USER
 ```
-Log out and log back in for changes to take effect.
+Log out and back in for changes to take effect.
 
 2. Install dependencies:
    ```bash
@@ -40,10 +40,21 @@ Log out and log back in for changes to take effect.
    chmod +x install_dependencies_universal.sh
    ./install_dependencies_universal.sh
    ```
-   
-   This script automatically detects your system (Fedora, Raspberry Pi, or other Linux) and installs appropriate dependencies.
+
+   This script automatically detects your system (Fedora, Raspberry Pi, or other Linux) and installs appropriate dependencies. It also handles virtual environment recombination from split files if available.
 
 3. After installation, you'll need to log out and back in for proper serial port permissions.
+
+### Uninstallation
+
+If you need to remove Comparatron and all its components:
+```bash
+cd dependencies/
+chmod +x uninstall.sh
+./uninstall.sh
+```
+
+This will remove systemd services, virtual environments, and other configuration files created during installation.
 
 ### Running the Application
 
@@ -98,7 +109,7 @@ The project uses a virtual environment split into 20MB chunks to comply with Git
 
 - Virtual environment: `comparatron_env/` (created in project root)
 - Split files: `dependencies/venv_splits/`
-- Installation recreates the environment from split files automatically
+- Installation scripts automatically recombine the environment from split files if available
 
 ### Updating Virtual Environment
 
@@ -109,6 +120,14 @@ If dependencies change:
 cd dependencies/
 ./split_venv.sh  # Creates new 20MB chunks
 ```
+
+### Virtual Environment Recombination
+
+During installation, the system automatically detects and recombines the virtual environment:
+1. Checks for existing `comparatron_env` directory
+2. If not found, looks for `dependencies/venv_splits/comparatron_env_main.tar.gz`
+3. If not found, looks for split files (`comparatron_env_part_*`) and recombines them
+4. Extracts the virtual environment to the project root
 
 ## Serial Communication Setup
 
@@ -172,8 +191,9 @@ comparatron-optimised/
 ├── validate_optimization.py # Installation validation
 ├── comparatron_env/       # Virtual environment (not in repo)
 ├── dependencies/          # Installation scripts and split venv
-│   ├── install_dependencies_universal.sh  # Universal installer
-│   ├── install_dependencies_generic.sh    # Generic installer  
+│   ├── install_dependencies_universal.sh  # Universal installer with recombination
+│   ├── install_dependencies_generic.sh    # Generic installer with recombination
+│   ├── uninstall.sh                       # Complete uninstallation script
 │   ├── split_venv.sh                    # Split venv script
 │   └── venv_splits/                     # Split virtual env files
 ├── documentation/         # Project documentation
