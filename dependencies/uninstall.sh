@@ -78,11 +78,22 @@ fi
 
 # Remove Python virtual environments
 echo -e "${YELLOW}Removing Python virtual environments...${NC}"
-if [ -d "$HOME/comparatron-optimised/dependencies/comparatron_env" ]; then
-    rm -rf "$HOME/comparatron-optimised/dependencies/comparatron_env"
-    echo -e "${GREEN}Removed comparatron_env virtual environment${NC}"
+if [ -d "./comparatron_env" ]; then
+    rm -rf "./comparatron_env"
+    echo -e "${GREEN}Removed Comparatron virtual environment from current directory${NC}"
+elif [ -d "$HOME/Documents/comparatron-optimised/comparatron_env" ]; then
+    rm -rf "$HOME/Documents/comparatron-optimised/comparatron_env"
+    echo -e "${GREEN}Removed Comparatron virtual environment from project directory${NC}"
 else
-    echo -e "${YELLOW}Comparatron virtual environment not found${NC}"
+    echo -e "${YELLOW}Comparatron virtual environment not found in current directory${NC}"
+fi
+
+# Check if the virtual environment exists in the home directory (older installations)
+if [ -d "$HOME/comparatron_env" ]; then
+    rm -rf "$HOME/comparatron_env"
+    echo -e "${GREEN}Removed Comparatron virtual environment from home directory${NC}"
+else
+    echo -e "${YELLOW}Comparatron virtual environment not found in home directory${NC}"
 fi
 
 if [ -d "$HOME/laserweb_env" ]; then
@@ -100,32 +111,10 @@ if [ -d "$HOME/LaserWeb" ]; then
     echo -e "${GREEN}Removed LaserWeb directory${NC}"
 fi
 
-# Remove any installed packages from user site-packages
-echo -e "${YELLOW}Removing installed Python packages...${NC}"
-
-# Remove user-installed packages that might conflict
-# Also check for variations in package names
-packages_to_remove="numpy flask pillow PIL pyserial ezdxf dearpygui opencv-python opencv-python-headless cv2 pyinstaller serial-tools laserweb"
-
-for pkg in $packages_to_remove; do
-    # For PIL, also check for Pillow as they might be installed under different names
-    if [ "$pkg" = "PIL" ] || [ "$pkg" = "PIL" ]; then
-        # Try both pillow and PIL/Pillow
-        python3 -m pip uninstall -y pillow PIL Pillow 2>/dev/null
-        python3 -m pip uninstall -y PIL 2>/dev/null
-        echo -e "${GREEN}Attempted to remove pillow-related packages${NC}"
-    elif [ "$pkg" = "cv2" ]; then
-        # CV2 is usually installed as opencv-python packages
-        python3 -m pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python 2>/dev/null
-        echo -e "${GREEN}Attempted to remove opencv-related packages${NC}"
-    else
-        if python3 -m pip show $pkg &> /dev/null; then
-            python3 -m pip uninstall -y $pkg 2>/dev/null && echo -e "${GREEN}Uninstalled $pkg${NC}"
-        else
-            echo -e "${YELLOW}$pkg not found${NC}"
-        fi
-    fi
-done
+# Note: The installation script creates a virtual environment which contains the packages,
+# so we don't need to uninstall individual packages from system Python - that could affect other programs.
+# The virtual environment contains all the required packages.
+echo -e "${YELLOW}Note: Packages were installed in virtual environment, no system packages to remove${NC}"
 
 # Optional: Remove system packages installed via apt (only for RPI/Fedora)
 echo -e "${YELLOW}Optionally removing system packages (may affect other programs)...${NC}"
