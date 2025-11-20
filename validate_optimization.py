@@ -12,8 +12,15 @@ import importlib.util
 def test_module_import(module_name, file_path=None):
     """Test if a module can be imported successfully"""
     print(f"Testing import of {module_name}...")
-    
+
     try:
+        # First check if we're in a virtual environment
+        in_venv = hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
+        if in_venv:
+            print(f"  Running in virtual environment: {sys.prefix}")
+        else:
+            print(f"  Running in system Python: {sys.executable}")
+
         if file_path:
             # Load module from file path
             spec = importlib.util.spec_from_file_location(module_name, file_path)
@@ -22,7 +29,7 @@ def test_module_import(module_name, file_path=None):
         else:
             # Import normally
             module = importlib.import_module(module_name)
-        
+
         print(f"✓ {module_name} imported successfully")
         return True
     except ImportError as e:
@@ -142,11 +149,59 @@ def test_main_script_exists():
         print("✗ Main script does not exist")
         return False
 
+def test_venv_setup():
+    """Test if we're running in the expected virtual environment"""
+    print("\nTesting virtual environment setup...")
+
+    # Check if we're in a virtual environment
+    in_venv = hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
+
+    if in_venv:
+        print(f"✓ Running in virtual environment: {sys.prefix}")
+
+        # Check if this is the Comparatron environment
+        if "comparatron_env" in sys.prefix:
+            print("✓ Running in Comparatron virtual environment")
+
+            # Additional check: try to run pip list to see installed packages
+            try:
+                result = subprocess.run([sys.executable, "-m", "pip", "list"],
+                                      capture_output=True, text=True, timeout=30)
+                if result.returncode == 0:
+                    installed_packages = result.stdout.lower()
+                    required_packages = ["numpy", "flask", "pillow", "pyserial", "ezdxf"]
+                    missing_packages = [pkg for pkg in required_packages if pkg not in installed_packages]
+
+                    if not missing_packages:
+                        print("✓ All required packages are installed in the virtual environment")
+                    else:
+                        print(f"✗ Missing packages in virtual environment: {missing_packages}")
+                        print("  Run the installation script to install missing packages")
+                        return False
+                else:
+                    print(f"? Could not verify installed packages: {result.stderr}")
+                    # Don't fail the test if pip list fails, just warn
+            except subprocess.TimeoutExpired:
+                print("? Timeout checking installed packages, continuing...")
+            except Exception as e:
+                print(f"? Error checking installed packages: {e}, continuing...")
+
+            return True
+        else:
+            print(f"? Running in virtual environment but not in Comparatron environment: {sys.prefix}")
+            return True  # Still OK, it's a venv
+    else:
+        print(f"✗ Not running in virtual environment. Currently using: {sys.executable}")
+        print("  This may cause issues with package dependencies.")
+        print("  Consider activating the Comparatron virtual environment before running.")
+        return False
+
 def run_all_tests():
     """Run all validation tests"""
     print("=== Comparatron Optimization Validation ===\n")
-    
+
     tests = [
+        ("Virtual environment", test_venv_setup),
         ("Module imports", lambda: all([
             test_module_import("cv2"),
             test_module_import("numpy"),
