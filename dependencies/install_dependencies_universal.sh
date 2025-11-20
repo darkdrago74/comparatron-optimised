@@ -20,7 +20,9 @@ setup_venv() {
     # Check if virtual environment exists in parent directory
     if [ -d "../comparatron_env" ]; then
         echo -e "${GREEN}Virtual environment already exists in parent directory${NC}"
+        # Explicitly activate the virtual environment
         source ../comparatron_env/bin/activate
+        echo -e "${YELLOW}Virtual environment activated: $(which python)${NC}"
     # Check if we have venv_splits directory with the main archive
     elif [ -d "venv_splits" ] && [ -f "venv_splits/comparatron_env_main.tar.gz" ]; then
         echo -e "${YELLOW}Found chunked virtual environment, recombining...${NC}"
@@ -34,15 +36,18 @@ setup_venv() {
                 echo -e "${GREEN}Virtual environment successfully recombined!${NC}"
                 source comparatron_env/bin/activate
                 chmod +x comparatron_env/bin/activate
+                echo -e "${YELLOW}Virtual environment activated: $(which python)${NC}"
             else
                 echo -e "${RED}Error: Failed to extract virtual environment - extracted directory not found${NC}"
                 python3 -m venv comparatron_env
                 source comparatron_env/bin/activate
+                echo -e "${YELLOW}New virtual environment created and activated: $(which python)${NC}"
             fi
         else
             echo -e "${RED}Error: Failed to extract virtual environment archive${NC}"
             python3 -m venv comparatron_env
             source comparatron_env/bin/activate
+            echo -e "${YELLOW}New virtual environment created and activated: $(which python)${NC}"
         fi
         cd dependencies
     # If there are chunk files but no combined archive, try recombining
@@ -62,20 +67,24 @@ setup_venv() {
                     echo -e "${GREEN}Virtual environment successfully recombined!${NC}"
                     source comparatron_env/bin/activate
                     chmod +x comparatron_env/bin/activate
+                    echo -e "${YELLOW}Virtual environment activated: $(which python)${NC}"
                 else
                     echo -e "${RED}Error: Failed to extract virtual environment - extracted directory not found${NC}"
                     python3 -m venv comparatron_env
                     source comparatron_env/bin/activate
+                    echo -e "${YELLOW}New virtual environment created and activated: $(which python)${NC}"
                 fi
             else
                 echo -e "${RED}Error: Failed to extract virtual environment from recombined archive${NC}"
                 python3 -m venv comparatron_env
                 source comparatron_env/bin/activate
+                echo -e "${YELLOW}New virtual environment created and activated: $(which python)${NC}"
             fi
         else
             echo -e "${RED}Error: Failed to recombine virtual environment splits${NC}"
             python3 -m venv comparatron_env
             source comparatron_env/bin/activate
+            echo -e "${YELLOW}New virtual environment created and activated: $(which python)${NC}"
         fi
         cd dependencies
     # If no venv exists and no splits exist, show error
@@ -305,23 +314,23 @@ setup_venv
 
 # Upgrade pip
 echo -e "${YELLOW}Upgrading pip...${NC}"
-../comparatron_env/bin/python -m pip install --upgrade pip
+python -m pip install --break-system-packages --upgrade pip
 
 # Install Python packages - use piwheels for ARM/RPi if available
 echo -e "${YELLOW}Installing required Python packages...${NC}"
 
 # Install packages that have ARM-compatible versions first
-../comparatron_env/bin/python -m pip install --prefer-binary numpy
+python -m pip install --break-system-packages --prefer-binary numpy
 
 # Install OpenCV with timeout and ARM-specific optimizations
 echo -e "${YELLOW}Installing OpenCV headless version (optimized for ARM if needed)...${NC}"
 if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
     # For RPi use piwheels specifically
-    timeout 120 ../comparatron_env/bin/python -m pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
+    timeout 120 python -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
         echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
     }
 else
-    timeout 120 ../comparatron_env/bin/python -m pip install --prefer-binary opencv-python-headless || {
+    timeout 120 python -m pip install --break-system-packages --prefer-binary opencv-python-headless || {
         echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
     }
 fi
@@ -329,9 +338,9 @@ fi
 # Install remaining packages
 if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
     # Use piwheels for ARM packages on RPi
-    ../comparatron_env/bin/python -m pip install --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
+    python -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
 else
-    ../comparatron_env/bin/python -m pip install --prefer-binary flask pillow pyserial ezdxf pyinstaller
+    python -m pip install --break-system-packages --prefer-binary flask pillow pyserial ezdxf pyinstaller
 fi
 
 # Create a temporary requirements file in case of issues
