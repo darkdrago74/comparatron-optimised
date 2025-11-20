@@ -312,25 +312,43 @@ esac
 # Set up virtual environment with recombination support
 setup_venv
 
-# Upgrade pip
+# Upgrade pip - use the virtual environment's python explicitly
 echo -e "${YELLOW}Upgrading pip...${NC}"
-python -m pip install --break-system-packages --upgrade pip
+if [ -f "../comparatron_env/bin/python" ]; then
+    ../comparatron_env/bin/python -m pip install --break-system-packages --upgrade pip
+else
+    python -m pip install --break-system-packages --upgrade pip
+fi
+
+# Ensure pip is available in virtual environment
+if [ -f "../comparatron_env/bin/pip" ]; then
+    PIP_CMD="../comparatron_env/bin/pip"
+elif [ -f "../comparatron_env/bin/python" ]; then
+    PIP_CMD="../comparatron_env/bin/python -m pip"
+else
+    PIP_CMD="python -m pip"
+fi
 
 # Install Python packages - use piwheels for ARM/RPi if available
 echo -e "${YELLOW}Installing required Python packages...${NC}"
 
 # Install packages that have ARM-compatible versions first
-python -m pip install --break-system-packages --prefer-binary numpy
+$PIP_CMD install --break-system-packages --prefer-binary numpy
 
 # Install OpenCV with timeout and ARM-specific optimizations
 echo -e "${YELLOW}Installing OpenCV headless version (optimized for ARM if needed)...${NC}"
 if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
-    # For RPi use piwheels specifically
-    timeout 120 python -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
-        echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
+    # For RPi use piwheels specifically - try multiple approaches for ARM compatibility
+    timeout 120 $PIP_CMD install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
+        echo -e "${YELLOW}OpenCV installation from piwheels failed, trying standard installation...${NC}"
+        # Try alternative package name or installation method for ARM
+        timeout 120 $PIP_CMD install --break-system-packages --prefer-binary opencv-python-headless || {
+            echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
+            echo -e "${YELLOW}Note: CV2 may be missing, but other functionality will work.${NC}"
+        }
     }
 else
-    timeout 120 python -m pip install --break-system-packages --prefer-binary opencv-python-headless || {
+    timeout 120 $PIP_CMD install --break-system-packages --prefer-binary opencv-python-headless || {
         echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
     }
 fi
@@ -338,9 +356,9 @@ fi
 # Install remaining packages
 if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
     # Use piwheels for ARM packages on RPi
-    python -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
+    $PIP_CMD install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
 else
-    python -m pip install --break-system-packages --prefer-binary flask pillow pyserial ezdxf pyinstaller
+    $PIP_CMD install --break-system-packages --prefer-binary flask pillow pyserial ezdxf pyinstaller
 fi
 
 # Create a temporary requirements file in case of issues

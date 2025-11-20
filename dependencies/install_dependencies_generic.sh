@@ -107,24 +107,59 @@ setup_venv() {
 # Set up virtual environment with recombination capability
 setup_venv
 
-# Upgrade pip
+# Upgrade pip - use the virtual environment's python explicitly
 echo -e "${YELLOW}Upgrading pip...${NC}"
-python -m pip install --break-system-packages --upgrade pip
+if [ -f "../comparatron_env/bin/python" ]; then
+    ../comparatron_env/bin/python -m pip install --break-system-packages --upgrade pip
+else
+    python -m pip install --break-system-packages --upgrade pip
+fi
+
+# Ensure pip is available in virtual environment
+if [ -f "../comparatron_env/bin/pip" ]; then
+    PIP_CMD="../comparatron_env/bin/pip"
+elif [ -f "../comparatron_env/bin/python" ]; then
+    PIP_CMD="../comparatron_env/bin/python -m pip"
+else
+    PIP_CMD="python -m pip"
+fi
 
 # Install required packages
 echo -e "${YELLOW}Installing required Python packages...${NC}"
 
 # Install packages that have ARM-compatible versions first
-python -m pip install --break-system-packages --prefer-binary numpy
+$PIP_CMD install --break-system-packages --prefer-binary numpy
 
-# Install OpenCV with timeout
+# Install OpenCV with timeout - try piwheels for ARM compatibility
 echo -e "${YELLOW}Installing OpenCV headless version...${NC}"
-timeout 120 python -m pip install --break-system-packages --prefer-binary opencv-python-headless || {
-    echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
-}
+DISTRO_TYPE="unknown"  # Determine distro type for proper piwheels usage
+if [ -f "/etc/os-release" ]; then
+    . /etc/os-release
+    if [[ "$ID" == *"raspbian"* ]] || [[ -f "/opt/vc/bin/vcgencmd" ]]; then
+        DISTRO_TYPE="raspberry_pi"
+    fi
+fi
+
+if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
+    timeout 120 $PIP_CMD install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
+        echo -e "${YELLOW}OpenCV installation from piwheels failed, trying standard installation...${NC}"
+        timeout 120 $PIP_CMD install --break-system-packages --prefer-binary opencv-python-headless || {
+            echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
+            echo -e "${YELLOW}Note: CV2 may be missing, but other functionality will work.${NC}"
+        }
+    }
+else
+    timeout 120 $PIP_CMD install --break-system-packages --prefer-binary opencv-python-headless || {
+        echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
+    }
+fi
 
 # Install remaining packages
-python -m pip install --break-system-packages --prefer-binary flask pillow pyserial ezdxf pyinstaller
+if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
+    $PIP_CMD install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
+else
+    $PIP_CMD install --break-system-packages --prefer-binary flask pillow pyserial ezdxf pyinstaller
+fi
 
 # Create a temporary requirements file in case of issues
 cat > requirements.txt << EOF
