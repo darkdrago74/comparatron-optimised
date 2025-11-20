@@ -134,12 +134,16 @@ During installation, the system automatically detects and recombines the virtual
 3. If not found, looks for split files (`comparatron_env_part_*`) and recombines them
 4. Extracts the virtual environment to the project root
 
-### PEP 668 Compliance
+### PEP 668 Compliance and ARM Optimization
 
 The installation scripts now properly handle PEP 668 compliance on newer Linux systems (including Raspberry Pi OS bookworm) by:
 - Using the `--break-system-packages` flag when installing packages in virtual environments
 - Ensuring the virtual environment is properly activated before package installation
 - Adding verification steps in the validation script to check package installation
+- Enhanced pip command handling to ensure proper installation within the virtual environment
+- ARM/ARM64-specific optimizations with fallback mechanisms for OpenCV installation
+- Improved piwheels integration for faster ARM package installation
+- Better dependency conflict resolution for Raspberry Pi systems
 
 ## Serial Communication Setup
 

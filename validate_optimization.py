@@ -165,8 +165,16 @@ def test_venv_setup():
 
             # Additional check: try to run pip list to see installed packages
             try:
-                result = subprocess.run([sys.executable, "-m", "pip", "list"],
-                                      capture_output=True, text=True, timeout=30)
+                # Use the virtual environment's pip directly
+                pip_path = os.path.join(sys.prefix, "bin", "pip")
+                if os.path.exists(pip_path):
+                    result = subprocess.run([pip_path, "list"],
+                                          capture_output=True, text=True, timeout=30)
+                else:
+                    # Fallback to python -m pip
+                    result = subprocess.run([sys.executable, "-m", "pip", "list"],
+                                          capture_output=True, text=True, timeout=30)
+
                 if result.returncode == 0:
                     installed_packages = result.stdout.lower()
                     required_packages = ["numpy", "flask", "pillow", "pyserial", "ezdxf"]
