@@ -11,6 +11,11 @@ Comparatron is an advanced optical comparator that combines:
 - DXF export for CAD integration
 - Virtual environment management with split archives for GitHub
 
+The project also includes optional integration with LaserWeb4 for additional CNC control capabilities:
+- LaserWeb runs on port 8080 by default
+- Provides g-code visualization and advanced motion control
+- Installation script can set up LaserWeb as a systemd service on Raspberry Pi systems
+
 ## Quick Start
 
 ### Installation
@@ -154,6 +159,13 @@ During installation, the system automatically detects and recombines the virtual
 - **Jog**: Manual axis movement
 - **Feed Rate**: Set movement speed
 
+### LaserWeb Integration
+The project includes LaserWeb4 integration for additional CNC control capabilities:
+- LaserWeb runs on port **8080** by default
+- Access at: `http://localhost:8080`
+- The installation script can set up LaserWeb as a systemd service on Raspberry Pi systems
+- LaserWeb provides additional features like g-code visualization and advanced motion control
+
 ### Error Messages
 Common error messages and solutions:
 - **"No response from GRBL controller"**: Check main power (12V/24V) connection
@@ -193,11 +205,11 @@ comparatron-optimised/
 ├── dependencies/          # Installation scripts and split venv
 │   ├── install_dependencies_universal.sh  # Universal installer with recombination
 │   ├── install_dependencies_generic.sh    # Generic installer with recombination
-│   ├── uninstall.sh                       # Complete uninstallation script
+│   ├── uninstall.sh                       # Complete uninstallation script (removes both Comparatron and LaserWeb4)
 │   ├── split_venv.sh                    # Split venv script
 │   └── venv_splits/                     # Split virtual env files
 ├── documentation/         # Project documentation
-└── laserweb4/            # Optional LaserWeb4 integration
+└── laserweb4/            # Optional LaserWeb4 integration (runs on port 8080)
 ```
 
 ## Development
