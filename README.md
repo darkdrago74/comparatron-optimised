@@ -144,6 +144,8 @@ The installation scripts now properly handle PEP 668 compliance on newer Linux s
 - ARM/ARM64-specific optimizations with fallback mechanisms for OpenCV installation
 - Improved piwheels integration for faster ARM package installation
 - Better dependency conflict resolution for Raspberry Pi systems
+- Absolute path resolution to ensure proper virtual environment activation
+- Multiple fallback approaches for robust installation across different systems
 
 ## Serial Communication Setup
 

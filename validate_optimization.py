@@ -9,6 +9,61 @@ import os
 import subprocess
 import importlib.util
 
+def test_venv_setup():
+    """Test if we're running in the expected virtual environment"""
+    print("\nTesting virtual environment setup...")
+
+    # Check if we're in a virtual environment
+    in_venv = hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
+    
+    if in_venv:
+        print(f"✓ Running in virtual environment: {sys.prefix}")
+        
+        # Check if this is the Comparatron environment
+        if "comparatron_env" in sys.prefix:
+            print("✓ Running in Comparatron virtual environment")
+            
+            # Additional check: try to run pip list to see installed packages
+            try:
+                # Use the virtual environment's pip directly
+                pip_path = os.path.join(sys.prefix, "bin", "pip")
+                if os.path.exists(pip_path):
+                    result = subprocess.run([pip_path, "list"],
+                                          capture_output=True, text=True, timeout=30)
+                else:
+                    # Fallback to python -m pip
+                    result = subprocess.run([sys.executable, "-m", "pip", "list"],
+                                          capture_output=True, text=True, timeout=30)
+                
+                if result.returncode == 0:
+                    installed_packages = result.stdout.lower()
+                    required_packages = ["numpy", "flask", "pillow", "pyserial", "ezdxf"]
+                    missing_packages = [pkg for pkg in required_packages if pkg not in installed_packages]
+                    
+                    if not missing_packages:
+                        print("✓ All required packages are installed in the virtual environment")
+                    else:
+                        print(f"✗ Missing packages in virtual environment: {missing_packages}")
+                        print("  Run the installation script to install missing packages")
+                        return False
+                else:
+                    print(f"? Could not verify installed packages: {result.stderr}")
+                    # Don't fail the test if pip list fails, just warn
+            except subprocess.TimeoutExpired:
+                print("? Timeout checking installed packages, continuing...")
+            except Exception as e:
+                print(f"? Error checking installed packages: {e}, continuing...")
+            
+            return True
+        else:
+            print(f"? Running in virtual environment but not in Comparatron environment: {sys.prefix}")
+            return True  # Still OK, it's a venv
+    else:
+        print(f"✗ Not running in virtual environment. Currently using: {sys.executable}")
+        print("  This may cause issues with package dependencies.")
+        print("  Consider activating the Comparatron virtual environment before running.")
+        return False
+
 def test_module_import(module_name, file_path=None):
     """Test if a module can be imported successfully"""
     print(f"Testing import of {module_name}...")
@@ -21,6 +76,7 @@ def test_module_import(module_name, file_path=None):
         else:
             print(f"  Running in system Python: {sys.executable}")
 
+        # First try to import directly
         if file_path:
             # Load module from file path
             spec = importlib.util.spec_from_file_location(module_name, file_path)
@@ -29,6 +85,15 @@ def test_module_import(module_name, file_path=None):
         else:
             # Import normally
             module = importlib.import_module(module_name)
+
+        # Additional check to verify the module is from the expected location
+        if hasattr(module, '__file__') and module.__file__:
+            if 'comparatron_env' in module.__file__:
+                print(f"  Module loaded from virtual environment: {module.__file__}")
+            elif 'site-packages' in module.__file__ or 'dist-packages' in module.__file__:
+                print(f"  Module loaded from system packages: {module.__file__}")
+            else:
+                print(f"  Module loaded from: {module.__file__}")
 
         print(f"✓ {module_name} imported successfully")
         return True
@@ -42,7 +107,7 @@ def test_module_import(module_name, file_path=None):
 def test_camera_functionality():
     """Test camera functionality"""
     print("\nTesting camera functionality...")
-    
+
     try:
         from camera_manager import find_available_cameras
         cameras = find_available_cameras()
@@ -55,7 +120,7 @@ def test_camera_functionality():
 def test_serial_functionality():
     """Test serial communication functionality"""
     print("\nTesting serial communication functionality...")
-    
+
     try:
         from serial_comm import SerialCommunicator
         comm = SerialCommunicator()
@@ -70,19 +135,19 @@ def test_serial_functionality():
 def test_machine_control():
     """Test machine control functionality"""
     print("\nTesting machine control functionality...")
-    
+
     try:
         from serial_comm import SerialCommunicator
         from machine_control import MachineController
-        
+
         # Create a mock serial communicator (won't connect to anything)
         comm = SerialCommunicator()
         controller = MachineController(comm)
-        
+
         # Test basic functionality
         controller.set_jog_distance(10.0)
         controller.set_feed_rate('fast')
-        
+
         print("✓ Machine control functionality tested")
         return True
     except Exception as e:
@@ -92,11 +157,11 @@ def test_machine_control():
 def test_dxf_functionality():
     """Test DXF handling functionality"""
     print("\nTesting DXF handling functionality...")
-    
+
     try:
         from dxf_handler import DXFHandler
         dxf_handler = DXFHandler()
-        
+
         # Test adding a point
         success = dxf_handler.add_point(10.0, 20.0)
         if success:
@@ -104,7 +169,7 @@ def test_dxf_functionality():
         else:
             print("✗ Failed to add DXF point")
             return False
-            
+
         # Test getting point count
         count = dxf_handler.get_point_count()
         if count == 1:
@@ -112,7 +177,7 @@ def test_dxf_functionality():
         else:
             print("✗ DXF point count incorrect")
             return False
-            
+
         return True
     except Exception as e:
         print(f"✗ DXF handling functionality test failed: {e}")
@@ -137,7 +202,7 @@ def test_dependencies_script():
     print("✗ Dependencies installation script does not exist")
     return False
 
-def test_main_script_exists():
+def test_main_script():
     """Test if main script exists"""
     print("\nTesting main script...")
 
@@ -149,61 +214,6 @@ def test_main_script_exists():
         print("✗ Main script does not exist")
         return False
 
-def test_venv_setup():
-    """Test if we're running in the expected virtual environment"""
-    print("\nTesting virtual environment setup...")
-
-    # Check if we're in a virtual environment
-    in_venv = hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
-
-    if in_venv:
-        print(f"✓ Running in virtual environment: {sys.prefix}")
-
-        # Check if this is the Comparatron environment
-        if "comparatron_env" in sys.prefix:
-            print("✓ Running in Comparatron virtual environment")
-
-            # Additional check: try to run pip list to see installed packages
-            try:
-                # Use the virtual environment's pip directly
-                pip_path = os.path.join(sys.prefix, "bin", "pip")
-                if os.path.exists(pip_path):
-                    result = subprocess.run([pip_path, "list"],
-                                          capture_output=True, text=True, timeout=30)
-                else:
-                    # Fallback to python -m pip
-                    result = subprocess.run([sys.executable, "-m", "pip", "list"],
-                                          capture_output=True, text=True, timeout=30)
-
-                if result.returncode == 0:
-                    installed_packages = result.stdout.lower()
-                    required_packages = ["numpy", "flask", "pillow", "pyserial", "ezdxf"]
-                    missing_packages = [pkg for pkg in required_packages if pkg not in installed_packages]
-
-                    if not missing_packages:
-                        print("✓ All required packages are installed in the virtual environment")
-                    else:
-                        print(f"✗ Missing packages in virtual environment: {missing_packages}")
-                        print("  Run the installation script to install missing packages")
-                        return False
-                else:
-                    print(f"? Could not verify installed packages: {result.stderr}")
-                    # Don't fail the test if pip list fails, just warn
-            except subprocess.TimeoutExpired:
-                print("? Timeout checking installed packages, continuing...")
-            except Exception as e:
-                print(f"? Error checking installed packages: {e}, continuing...")
-
-            return True
-        else:
-            print(f"? Running in virtual environment but not in Comparatron environment: {sys.prefix}")
-            return True  # Still OK, it's a venv
-    else:
-        print(f"✗ Not running in virtual environment. Currently using: {sys.executable}")
-        print("  This may cause issues with package dependencies.")
-        print("  Consider activating the Comparatron virtual environment before running.")
-        return False
-
 def run_all_tests():
     """Run all validation tests"""
     print("=== Comparatron Optimization Validation ===\n")
@@ -213,46 +223,46 @@ def run_all_tests():
         ("Module imports", lambda: all([
             test_module_import("cv2"),
             test_module_import("numpy"),
-            test_module_import("flask"),  # Added Flask as main GUI framework
-            test_module_import("PIL"),    # Added Pillow for imaging
-            test_module_import("serial"),
+            test_module_import("flask"),
+            test_module_import("PIL"),    # Pillow
+            test_module_import("serial"), # PySerial
             test_module_import("ezdxf"),
             test_module_import("camera_manager", "camera_manager.py"),
             test_module_import("serial_comm", "serial_comm.py"),
             test_module_import("machine_control", "machine_control.py"),
             test_module_import("dxf_handler", "dxf_handler.py"),
-            test_module_import("gui_flask", "gui_flask.py")  # Test Flask GUI module
+            test_module_import("gui_flask", "gui_flask.py")
         ])),
         ("Camera functionality", test_camera_functionality),
         ("Serial functionality", test_serial_functionality),
         ("Machine control functionality", test_machine_control),
         ("DXF functionality", test_dxf_functionality),
         ("Dependencies script", test_dependencies_script),
-        ("Main script", test_main_script_exists)
+        ("Main script", test_main_script)
     ]
-    
+
     results = []
     for test_name, test_func in tests:
         print(f"\nRunning: {test_name}")
         result = test_func()
         results.append((test_name, result))
-    
+
     # Summary
     print("\n" + "="*50)
     print("VALIDATION SUMMARY")
     print("="*50)
-    
+
     passed = 0
     total = len(results)
-    
+
     for test_name, result in results:
         status = "PASS" if result else "FAIL"
         print(f"{test_name}: {status}")
         if result:
             passed += 1
-    
+
     print(f"\nOverall: {passed}/{total} tests passed")
-    
+
     if passed == total:
         print("✓ All tests passed! Comparatron optimization is successful.")
         return True
