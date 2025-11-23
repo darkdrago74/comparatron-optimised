@@ -16,15 +16,19 @@ echo -e "${BLUE}=== Comparatron Universal Installation (Simplified) ===${NC}"
 # Function to setup virtual environment
 setup_venv() {
     echo -e "${YELLOW}Setting up Python virtual environment...${NC}"
+    
+    # Get absolute path to the project root directory 
+    PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    VENV_DIR="$PROJECT_ROOT/comparatron_env"
 
     # Check if virtual environment exists in parent directory
-    if [ -d "../comparatron_env" ]; then
+    if [ -d "$VENV_DIR" ]; then
         echo -e "${GREEN}Virtual environment already exists in parent directory${NC}"
-        # Explicitly activate the virtual environment
-        source ../comparatron_env/bin/activate
+        # Explicitly activate the virtual environment using absolute path
+        source "$VENV_DIR/bin/activate"
         echo -e "${YELLOW}Virtual environment activated: $(which python)${NC}"
     # Check if we have venv_splits directory with the main archive
-    elif [ -d "venv_splits" ] && [ -f "venv_splits/comparatron_env_main.tar.gz" ]; then
+    elif [ -d "$(dirname "${BASH_SOURCE[0]}")/venv_splits" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/venv_splits/comparatron_env_main.tar.gz" ]; then
         echo -e "${YELLOW}Found chunked virtual environment, recombining...${NC}"
 
         # Extract the main tar.gz file to create the virtual environment
@@ -51,7 +55,7 @@ setup_venv() {
         fi
         cd dependencies
     # If there are chunk files but no combined archive, try recombining
-    elif [ -d "venv_splits" ] && [ -f "venv_splits/comparatron_env_part_aa" ]; then
+    elif [ -d "$(dirname "${BASH_SOURCE[0]}")/venv_splits" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/venv_splits/comparatron_env_part_aa" ]; then
         echo -e "${YELLOW}Found chunked virtual environment files, recombining...${NC}"
 
         # Combine all chunk files to create the main archive
@@ -90,7 +94,7 @@ setup_venv() {
     # If no venv exists and no splits exist, show error
     else
         echo -e "${RED}Error: Neither virtual environment nor split files found${NC}"
-        echo -e "${YELLOW}Expected to find either: ../comparatron_env directory OR${NC}"
+        echo -e "${YELLOW}Expected to find either: $PROJECT_ROOT/comparatron_env directory OR${NC}"
         echo -e "${YELLOW}  - dependencies/venv_splits/comparatron_env_main.tar.gz OR${NC}"
         echo -e "${YELLOW}  - dependencies/venv_splits/comparatron_env_part_* files${NC}"
         echo -e "${RED}Please run the split_venv.sh script first to create the split files${NC}"
@@ -110,13 +114,13 @@ detect_system() {
         VER=$(uname -r)
         ID_LIKE=""
     fi
-    
+
     echo -e "${YELLOW}Detected OS: $OS${NC}"
-    
+
     # Check if this is Raspbian/Debian-based system (especially RPi)
     if [[ "$OS" == *"Raspbian"* ]] || [[ "$OS" == *"Debian GNU/Linux"* ]] || [[ "$ID_LIKE" == *"debian"* ]]; then
-        if grep -q "Raspberry\|raspberrypi\|rpi" /proc/cpuinfo 2>/dev/null || 
-           [ -f "/opt/vc/bin/vcgencmd" ] || 
+        if grep -q "Raspberry\|raspberrypi\|rpi" /proc/cpuinfo 2>/dev/null ||
+           [ -f "/opt/vc/bin/vcgencmd" ] ||
            grep -q "Raspberry\|BCM" /proc/cpuinfo 2>/dev/null; then
             DISTRO_TYPE="raspberry_pi"
         else
@@ -134,14 +138,14 @@ detect_system() {
             DISTRO_TYPE="generic"
         fi
     fi
-    
+
     echo -e "${YELLOW}Detected system type: $DISTRO_TYPE${NC}"
 }
 
 # Install for Debian-based systems (including RPi)
 install_debian() {
     echo -e "${YELLOW}Installing for Debian-based system...${NC}"
-    
+
     if command -v sudo &> /dev/null; then
         SUDO="sudo"
         echo -e "${GREEN}Sudo available${NC}"
@@ -149,13 +153,13 @@ install_debian() {
         SUDO=""
         echo -e "${RED}Sudo not available, some operations may fail${NC}"
     fi
-    
+
     # Update package list
     echo -e "${YELLOW}Updating package list...${NC}"
     if [ -n "$SUDO" ]; then
         $SUDO apt update -y
     fi
-    
+
     # Install system dependencies - avoid conflicting packages
     echo -e "${YELLOW}Installing system dependencies...${NC}"
     if [ -n "$SUDO" ]; then
@@ -177,7 +181,7 @@ install_debian() {
 # Install for Fedora-based systems
 install_fedora() {
     echo -e "${YELLOW}Installing for Fedora system...${NC}"
-    
+
     if command -v sudo &> /dev/null; then
         SUDO="sudo"
         echo -e "${GREEN}Sudo available${NC}"
@@ -185,24 +189,24 @@ install_fedora() {
         SUDO=""
         echo -e "${RED}Sudo not available, some operations may fail${NC}"
     fi
-    
+
     # Update package list
     echo -e "${YELLOW}Updating package list...${NC}"
     if [ -n "$SUDO" ]; then
         $SUDO dnf update -y
     fi
-    
+
     # Install system dependencies
     echo -e "${YELLOW}Installing system dependencies...${NC}"
     if [ -n "$SUDO" ]; then
-        $SUDO dnf install -y python3 python3-pip python3-devel python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev gcc gcc-c++ libatlas3-base
+        $SUDO dnf install -y python3 python3-pip python3-devel python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev
     fi
 }
 
 # Generic installation (for any system)
 install_generic() {
     echo -e "${YELLOW}Installing for generic system...${NC}"
-    
+
     # Check if Python 3 is installed
     if ! command -v python3 &> /dev/null; then
         echo -e "${RED}Error: Python 3 is not installed.${NC}"
@@ -214,14 +218,14 @@ install_generic() {
 setup_service() {
     if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
         echo -e "${YELLOW}Setting up auto-start service for Raspberry Pi...${NC}"
-        
+
         if command -v sudo &> /dev/null; then
             SUDO="sudo"
         else
             echo -e "${YELLOW}Sudo not available, skipping systemd service setup${NC}"
             return
         fi
-        
+
         # Create a systemd service file
         SERVICE_FILE="/etc/systemd/system/comparatron.service"
         SERVICE_CONTENT="[Unit]
@@ -244,7 +248,7 @@ WantedBy=multi-user.target"
         $SUDO systemctl daemon-reload
         $SUDO systemctl enable comparatron.service
         echo -e "${GREEN}Comparatron service enabled to start on boot${NC}"
-        
+
         # Add user to video group for camera access
         $SUDO usermod -a -G video $USER
         echo -e "${GREEN}User added to video group for camera access${NC}"
@@ -271,7 +275,7 @@ test_installation() {
 
     for pkg in numpy flask pillow pyserial ezdxf cv2; do
         if [ "$pkg" = "cv2" ]; then
-            IMP="cv2 as cv" 
+            IMP="cv2 as cv"
         elif [ "$pkg" = "pillow" ]; then
             IMP="PIL as Image"
         elif [ "$pkg" = "pyserial" ]; then
@@ -279,7 +283,7 @@ test_installation() {
         else
             IMP="$pkg"
         fi
-        
+
         if python3 -c "import $IMP" &> /dev/null; then
             echo -e "${GREEN}✓ $pkg working${NC}"
         else
@@ -312,43 +316,45 @@ esac
 # Set up virtual environment with recombination support
 setup_venv
 
-# Upgrade pip - use the virtual environment's python explicitly
-echo -e "${YELLOW}Upgrading pip...${NC}"
-if [ -f "../comparatron_env/bin/python" ]; then
-    ../comparatron_env/bin/python -m pip install --break-system-packages --upgrade pip
+# Make sure we're using the virtual environment's Python for pip operations
+if [ -f "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/comparatron_env/bin/python" ]; then
+    VENV_PYTHON="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/comparatron_env/bin/python"
+    VENV_PIP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/comparatron_env/bin/pip"
 else
-    python -m pip install --break-system-packages --upgrade pip
+    VENV_PYTHON="python"
+    VENV_PIP="pip"
 fi
 
-# Ensure pip is available in virtual environment
-if [ -f "../comparatron_env/bin/pip" ]; then
-    PIP_CMD="../comparatron_env/bin/pip"
-elif [ -f "../comparatron_env/bin/python" ]; then
-    PIP_CMD="../comparatron_env/bin/python -m pip"
-else
-    PIP_CMD="python -m pip"
+# Upgrade pip using the virtual environment's Python
+echo -e "${YELLOW}Upgrading pip...${NC}"
+$VENV_PYTHON -m pip install --break-system-packages --upgrade pip
+
+# Ensure pip is accessible in the virtual environment
+if [ ! -f "$VENV_PIP" ]; then
+    # If pip is not directly available, use python -m pip
+    VENV_PIP="$VENV_PYTHON -m pip"
 fi
 
 # Install Python packages - use piwheels for ARM/RPi if available
 echo -e "${YELLOW}Installing required Python packages...${NC}"
 
 # Install packages that have ARM-compatible versions first
-$PIP_CMD install --break-system-packages --prefer-binary numpy
+$VENV_PIP install --break-system-packages --prefer-binary numpy
 
 # Install OpenCV with timeout and ARM-specific optimizations
 echo -e "${YELLOW}Installing OpenCV headless version (optimized for ARM if needed)...${NC}"
 if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
     # For RPi use piwheels specifically - try multiple approaches for ARM compatibility
-    timeout 120 $PIP_CMD install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
+    timeout 120 $VENV_PIP install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python-headless || {
         echo -e "${YELLOW}OpenCV installation from piwheels failed, trying standard installation...${NC}"
         # Try alternative package name or installation method for ARM
-        timeout 120 $PIP_CMD install --break-system-packages --prefer-binary opencv-python-headless || {
+        timeout 120 $VENV_PIP install --break-system-packages --prefer-binary opencv-python-headless || {
             echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
             echo -e "${YELLOW}Note: CV2 may be missing, but other functionality will work.${NC}"
         }
     }
 else
-    timeout 120 $PIP_CMD install --break-system-packages --prefer-binary opencv-python-headless || {
+    timeout 120 $VENV_PIP install --break-system-packages --prefer-binary opencv-python-headless || {
         echo -e "${YELLOW}OpenCV installation taking too long or failed, continuing...${NC}"
     }
 fi
@@ -356,9 +362,9 @@ fi
 # Install remaining packages
 if [[ "$DISTRO_TYPE" == "raspberry_pi" ]]; then
     # Use piwheels for ARM packages on RPi
-    $PIP_CMD install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
+    $VENV_PIP install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary flask pillow pyserial ezdxf pyinstaller
 else
-    $PIP_CMD install --break-system-packages --prefer-binary flask pillow pyserial ezdxf pyinstaller
+    $VENV_PIP install --break-system-packages --prefer-binary flask pillow pyserial ezdxf pyinstaller
 fi
 
 # Create a temporary requirements file in case of issues
@@ -373,7 +379,7 @@ pyinstaller
 EOF
 
 # Install from requirements to handle any remaining dependency issues with ARM-optimized packages
-timeout 30 ../comparatron_env/bin/python -m pip install --prefer-binary -r requirements.txt || echo -e "${YELLOW}Some packages may have failed but continuing...${NC}"
+timeout 30 $VENV_PIP install --break-system-packages --prefer-binary -r requirements.txt || echo -e "${YELLOW}Some packages may have failed but continuing...${NC}"
 
 # Clean up
 rm requirements.txt
