@@ -100,6 +100,20 @@ setup_venv() {
         echo -e "${RED}Please run the split_venv.sh script first to create the split files${NC}"
         exit 1
     fi
+
+    # Verify that pip is available in the virtual environment
+    if ! python -c "import pip" &>/dev/null; then
+        echo -e "${YELLOW}Pip not found in virtual environment, installing...${NC}"
+        python -m ensurepip --upgrade
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}Pip successfully installed in virtual environment${NC}"
+        else
+            echo -e "${RED}Failed to install pip in virtual environment${NC}"
+            # Try alternative method
+            python -m venv --upgrade "$VENV_DIR" --without-pip
+            python -m ensurepip --upgrade
+        fi
+    fi
 }
 
 # Detect the operating system
@@ -316,11 +330,18 @@ esac
 # Set up virtual environment with recombination support
 setup_venv
 
-# Make sure we're using the virtual environment's Python for pip operations
-if [ -f "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/comparatron_env/bin/python" ]; then
-    VENV_PYTHON="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/comparatron_env/bin/python"
-    VENV_PIP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/comparatron_env/bin/pip"
+# After virtual environment is set up and activated, define variables to ensure we use the correct Python and pip
+if [ -f "$PROJECT_ROOT/comparatron_env/bin/python" ]; then
+    VENV_PYTHON="$PROJECT_ROOT/comparatron_env/bin/python"
+    # Check if pip executable exists in the virtual environment
+    if [ -f "$PROJECT_ROOT/comparatron_env/bin/pip" ]; then
+        VENV_PIP="$PROJECT_ROOT/comparatron_env/bin/pip"
+    else
+        # If pip executable doesn't exist, use python -m pip instead
+        VENV_PIP="$VENV_PYTHON -m pip"
+    fi
 else
+    # If for some reason the virtual environment doesn't exist, fall back to regular commands
     VENV_PYTHON="python"
     VENV_PIP="pip"
 fi
@@ -329,10 +350,13 @@ fi
 echo -e "${YELLOW}Upgrading pip...${NC}"
 $VENV_PYTHON -m pip install --break-system-packages --upgrade pip
 
-# Ensure pip is accessible in the virtual environment
-if [ ! -f "$VENV_PIP" ]; then
-    # If pip is not directly available, use python -m pip
-    VENV_PIP="$VENV_PYTHON -m pip"
+# Ensure pip is accessible in the virtual environment and verify it's using the venv version
+if [ ! -f "$PROJECT_ROOT/comparatron_env/bin/pip" ]; then
+    # If pip executable doesn't exist, double-check that python -m pip works in the venv context
+    if [ "$VENV_PIP" != "$VENV_PYTHON -m pip" ]; then
+        VENV_PIP="$VENV_PYTHON -m pip"
+    fi
+    echo -e "${YELLOW}Note: Using 'python -m pip' instead of direct pip executable${NC}"
 fi
 
 # Install Python packages - use piwheels for ARM/RPi if available
