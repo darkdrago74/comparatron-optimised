@@ -54,15 +54,24 @@ def test_venv_setup():
             # Check 2: Can we run pip commands?
             print("  Checking pip functionality in virtual environment...")
             try:
-                # Use the virtual environment's pip to check itself
-                pip_check = subprocess.run([pip_path if os.path.exists(pip_path) else f"{python_path} -m pip",
-                                           "--version"], capture_output=True, text=True, timeout=10)
-                if pip_check.returncode == 0:
-                    print(f"  ✓ Pip is functional: {pip_check.stdout.strip()}")
+                # First try direct pip command if available
+                if os.path.exists(pip_path):
+                    pip_check = subprocess.run([pip_path, "--version"], capture_output=True, text=True, timeout=10)
+                    if pip_check.returncode == 0:
+                        print(f"  ✓ Pip is functional: {pip_check.stdout.strip()}")
+                    else:
+                        print(f"  ✗ Pip is not functioning: {pip_check.stderr}")
+                        print("  Run the installation script to fix pip in virtual environment")
+                        return False
                 else:
-                    print(f"  ✗ Pip is not functioning: {pip_check.stderr}")
-                    print("  Run the installation script to fix pip in virtual environment")
-                    return False
+                    # If direct pip command is not available, try python -m pip
+                    pip_check = subprocess.run([python_path, "-m", "pip", "--version"], capture_output=True, text=True, timeout=10)
+                    if pip_check.returncode == 0:
+                        print(f"  ✓ Pip is functional: {pip_check.stdout.strip()}")
+                    else:
+                        print(f"  ✗ Pip is not functioning: {pip_check.stderr}")
+                        print("  Run the installation script to fix pip in virtual environment")
+                        return False
             except Exception as e:
                 print(f"  ✗ Pip functionality check failed: {e}")
                 print("  Run the installation script to fix pip in virtual environment")
@@ -70,8 +79,12 @@ def test_venv_setup():
 
             # Additional check: try to run pip list to see installed packages
             try:
-                result = subprocess.run([pip_path if os.path.exists(pip_path) else f"{python_path} -m pip", "list"],
-                                      capture_output=True, text=True, timeout=30)
+                # First try direct pip command if available
+                if os.path.exists(pip_path):
+                    result = subprocess.run([pip_path, "list"], capture_output=True, text=True, timeout=30)
+                else:
+                    # If pip executable doesn't exist, use python -m pip
+                    result = subprocess.run([python_path, "-m", "pip", "list"], capture_output=True, text=True, timeout=30)
 
                 if result.returncode == 0:
                     installed_packages = result.stdout.lower()
