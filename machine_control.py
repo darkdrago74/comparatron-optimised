@@ -42,7 +42,7 @@ class MachineController:
     def set_feed_rate(self, rate_type='default'):
         """
         Set feed rate for machine movements
-        
+
         Args:
             rate_type (str): 'fast', 'slow', or 'default'
         """
@@ -51,6 +51,24 @@ class MachineController:
             return self.comm.set_feed(self.current_feed_rate)
         else:
             print(f"Invalid rate type: {rate_type}")
+            return None
+
+    def send_raw_command(self, raw_command):
+        """Send a raw command without homing safety checks for advanced users"""
+        print(f"Sending raw command without safety checks: {raw_command}")
+        if self.comm and hasattr(self.comm, 'send_raw_command'):
+            response = self.comm.send_raw_command(raw_command)
+            return response
+        else:
+            print("No active serial connection")
+            return None
+
+    def get_machine_status(self):
+        """Get current machine status"""
+        if self.comm and hasattr(self.comm, 'get_machine_status'):
+            return self.comm.get_machine_status()
+        else:
+            print("No active serial connection")
             return None
     
     def jog_x_positive(self):

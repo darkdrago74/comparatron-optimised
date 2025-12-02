@@ -222,7 +222,7 @@ comparatron-optimised/
 │   ├── uninstall.sh                       # Complete uninstallation script (removes both Comparatron and LaserWeb4)
 │   ├── split_venv.sh                    # Split venv script
 │   └── venv_splits/                     # Split virtual env files
-└── laserweb4/            # Optional LaserWeb4 integration (runs on port 8080)
+└── laserweb4/            # Optional LaserWeb4 integration (web interface on port 8000)
 ```
 
 ## Development

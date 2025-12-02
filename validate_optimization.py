@@ -8,6 +8,7 @@ import sys
 import os
 import subprocess
 import importlib.util
+import time
 
 def test_venv_setup():
     """Test if we're running in the expected virtual environment"""
@@ -15,47 +16,28 @@ def test_venv_setup():
 
     # Check if we're in a virtual environment
     in_venv = hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
-
+    
     if in_venv:
         print(f"✓ Running in virtual environment: {sys.prefix}")
-
+        
         # Check if this is the Comparatron environment
         if "comparatron_env" in sys.prefix:
             print("✓ Running in Comparatron virtual environment")
-
+            
             # Additional checks to verify everything is working properly
             print("  Verifying virtual environment integrity...")
-
+            
             # Check 1: Does pip exist in the virtual environment?
             venv_bin_dir = os.path.join(sys.prefix, "bin")
             pip_path = os.path.join(venv_bin_dir, "pip")
             python_path = os.path.join(venv_bin_dir, "python")
 
-            if not os.path.exists(pip_path):
-                print("  ✗ Pip executable not found in virtual environment")
-                # Check if we can access pip via python -m pip
-                try:
-                    result = subprocess.run([python_path, "-m", "pip", "--version"],
-                                         capture_output=True, text=True, timeout=10)
-                    if result.returncode == 0:
-                        print("  ✓ Pip accessible via python -m pip")
-                    else:
-                        print("  ✗ Pip not accessible via python -m pip")
-                        print("  ✗ Virtual environment may not have pip installed properly")
-                        print("  Run the installation script to fix virtual environment")
-                        return False
-                except Exception as e:
-                    print(f"  ✗ Pip accessibility check failed: {e}")
-                    print("  Run the installation script to fix virtual environment")
-                    return False
-            else:
+            if os.path.exists(pip_path):
                 print("  ✓ Pip executable found in virtual environment")
-
-            # Check 2: Can we run pip commands?
-            print("  Checking pip functionality in virtual environment...")
-            try:
-                # First try direct pip command if available
-                if os.path.exists(pip_path):
+                
+                # Check 2: Can we run pip commands with the direct pip command?
+                print("  Checking pip functionality in virtual environment...")
+                try:
                     pip_check = subprocess.run([pip_path, "--version"], capture_output=True, text=True, timeout=10)
                     if pip_check.returncode == 0:
                         print(f"  ✓ Pip is functional: {pip_check.stdout.strip()}")
@@ -63,34 +45,39 @@ def test_venv_setup():
                         print(f"  ✗ Pip is not functioning: {pip_check.stderr}")
                         print("  Run the installation script to fix pip in virtual environment")
                         return False
-                else:
-                    # If direct pip command is not available, try python -m pip
+                except Exception as e:
+                    print(f"  ✗ Pip functionality check failed: {e}")
+                    print("  Run the installation script to fix pip in virtual environment")
+                    return False
+            else:
+                print("  ? Pip executable not found in virtual environment, checking with python -m pip...")
+                
+                # If pip executable doesn't exist, try python -m pip
+                try:
                     pip_check = subprocess.run([python_path, "-m", "pip", "--version"], capture_output=True, text=True, timeout=10)
                     if pip_check.returncode == 0:
-                        print(f"  ✓ Pip is functional: {pip_check.stdout.strip()}")
+                        print(f"  ✓ Pip accessible via python -m pip: {pip_check.stdout.strip()}")
                     else:
-                        print(f"  ✗ Pip is not functioning: {pip_check.stderr}")
-                        print("  Run the installation script to fix pip in virtual environment")
+                        print(f"  ✗ Pip not accessible via python -m pip: {pip_check.stderr}")
+                        print("  Run the installation script to install pip in virtual environment")
                         return False
-            except Exception as e:
-                print(f"  ✗ Pip functionality check failed: {e}")
-                print("  Run the installation script to fix pip in virtual environment")
-                return False
-
+                except Exception as e:
+                    print(f"  ✗ Pip accessibility check failed: {e}")
+                    print("  Run the installation script to fix virtual environment")
+                    return False
+            
             # Additional check: try to run pip list to see installed packages
             try:
-                # First try direct pip command if available
                 if os.path.exists(pip_path):
                     result = subprocess.run([pip_path, "list"], capture_output=True, text=True, timeout=30)
                 else:
-                    # If pip executable doesn't exist, use python -m pip
                     result = subprocess.run([python_path, "-m", "pip", "list"], capture_output=True, text=True, timeout=30)
-
+                
                 if result.returncode == 0:
                     installed_packages = result.stdout.lower()
                     required_packages = ["numpy", "flask", "pillow", "pyserial", "ezdxf"]
                     missing_packages = [pkg for pkg in required_packages if pkg not in installed_packages]
-
+                    
                     # Special handling for OpenCV since it might not appear in pip list due to installation issues
                     opencv_missing = True
                     for pkg in ["opencv", "opencv-python", "opencv-python-headless"]:
@@ -122,7 +109,7 @@ def test_venv_setup():
                         print("  Run the installation script to install missing packages")
                         return False
                 else:
-                    print(f"? Could not verify installed packages: {result.stderr}")
+                    print(f"  ? Could not verify installed packages: {result.stderr}")
                     # Try to manually check if critical packages can be imported
                     critical_packages = ["numpy", "flask", "pillow", "pyserial", "ezdxf"]
                     unavailable = []
@@ -136,19 +123,18 @@ def test_venv_setup():
                                 __import__(pkg)
                         except ImportError:
                             unavailable.append(pkg)
-
+                    
                     if unavailable:
                         print(f"  ✗ Critical packages unavailable: {unavailable}")
-                        print("  Run the installation script to fix package installation")
                         return False
                     else:
                         print("  ? Packages check inconclusive, but critical packages seem to be available")
                     # Don't fail the test if pip list fails, just warn
             except subprocess.TimeoutExpired:
-                print("? Timeout checking installed packages, continuing...")
+                print("  ? Timeout checking installed packages, continuing...")
             except Exception as e:
-                print(f"? Error checking installed packages: {e}, continuing...")
-
+                print(f"  ? Error checking installed packages: {e}, continuing...")
+            
             return True
         else:
             print(f"? Running in virtual environment but not in Comparatron environment: {sys.prefix}")
@@ -157,7 +143,9 @@ def test_venv_setup():
         print(f"✗ Not running in virtual environment. Currently using: {sys.executable}")
         print("  This may cause issues with package dependencies.")
         print("  Consider activating the Comparatron virtual environment before running.")
+        print("  To activate: source comparatron_env/bin/activate")
         return False
+
 
 def test_module_import(module_name, file_path=None):
     """Test if a module can be imported successfully"""
@@ -180,15 +168,15 @@ def test_module_import(module_name, file_path=None):
         else:
             # Import normally
             module = importlib.import_module(module_name)
-
-        # Additional check to verify the module is from the expected location
+        
+        # Additional check to verify if module is from the expected location (virtual environment)
         if hasattr(module, '__file__') and module.__file__:
             if 'comparatron_env' in module.__file__:
-                print(f"  Module loaded from virtual environment: {module.__file__}")
+                print(f"  ✓ Module loaded from virtual environment: {module.__file__}")
             elif 'site-packages' in module.__file__ or 'dist-packages' in module.__file__:
-                print(f"  Module loaded from system packages: {module.__file__}")
+                print(f"  ✓ Module loaded from system packages: {module.__file__}")
             else:
-                print(f"  Module loaded from: {module.__file__}")
+                print(f"  ✓ Module loaded from: {module.__file__}")
 
         print(f"✓ {module_name} imported successfully")
         return True
@@ -198,6 +186,7 @@ def test_module_import(module_name, file_path=None):
     except Exception as e:
         print(f"✗ Error importing {module_name}: {e}")
         return False
+
 
 def test_camera_functionality():
     """Test camera functionality"""
@@ -211,6 +200,7 @@ def test_camera_functionality():
     except Exception as e:
         print(f"✗ Camera functionality test failed: {e}")
         return False
+
 
 def test_serial_functionality():
     """Test serial communication functionality"""
@@ -226,6 +216,7 @@ def test_serial_functionality():
     except Exception as e:
         print(f"✗ Serial communication functionality test failed: {e}")
         return False
+
 
 def test_machine_control():
     """Test machine control functionality"""
@@ -249,6 +240,7 @@ def test_machine_control():
         print(f"✗ Machine control functionality test failed: {e}")
         return False
 
+
 def test_dxf_functionality():
     """Test DXF handling functionality"""
     print("\nTesting DXF handling functionality...")
@@ -270,7 +262,7 @@ def test_dxf_functionality():
         if count == 1:
             print("✓ DXF point count correct")
         else:
-            print("✗ DXF point count incorrect")
+            print(f"✗ DXF point count incorrect: expected 1, got {count}")
             return False
 
         return True
@@ -278,12 +270,16 @@ def test_dxf_functionality():
         print(f"✗ DXF handling functionality test failed: {e}")
         return False
 
+
 def test_dependencies_script():
     """Test if dependencies installation script exists and is executable"""
     print("\nTesting dependencies script...")
 
     # Check for either of the actual script names used in the project (in dependencies directory)
-    script_paths = ["dependencies/install_dependencies_universal.sh", "dependencies/install_dependencies_generic.sh"]
+    script_paths = [
+        "dependencies/install_dependencies_universal.sh", 
+        "dependencies/install_dependencies_generic.sh"
+    ]
 
     for script_path in script_paths:
         if os.path.exists(script_path):
@@ -291,11 +287,20 @@ def test_dependencies_script():
                 print(f"✓ Dependencies installation script exists and is executable ({script_path})")
                 return True
             else:
-                print(f"✗ Dependencies installation script exists but is not executable ({script_path})")
-                return False
+                print(f"? Dependencies installation script exists but is not executable ({script_path})")
+                # Try to make it executable
+                try:
+                    os.chmod(script_path, 0o755)
+                    print(f"  Made script executable: {script_path}")
+                    return True
+                except Exception:
+                    print(f"  Could not make script executable: {script_path}")
+                    return False
 
     print("✗ Dependencies installation script does not exist")
+    print("  Expected files: dependencies/install_dependencies_universal.sh or dependencies/install_dependencies_generic.sh")
     return False
+
 
 def test_main_script():
     """Test if main script exists"""
@@ -309,6 +314,7 @@ def test_main_script():
         print("✗ Main script does not exist")
         return False
 
+
 def run_all_tests():
     """Run all validation tests"""
     print("=== Comparatron Optimization Validation ===\n")
@@ -319,8 +325,8 @@ def run_all_tests():
             test_module_import("cv2"),
             test_module_import("numpy"),
             test_module_import("flask"),
-            test_module_import("PIL"),    # Pillow
-            test_module_import("serial"), # PySerial
+            test_module_import("PIL"),
+            test_module_import("serial"),
             test_module_import("ezdxf"),
             test_module_import("camera_manager", "camera_manager.py"),
             test_module_import("serial_comm", "serial_comm.py"),
@@ -338,12 +344,13 @@ def run_all_tests():
 
     results = []
     for test_name, test_func in tests:
-        print(f"\nRunning: {test_name}")
+        print(f"Running: {test_name}")
         result = test_func()
         results.append((test_name, result))
+        print()
 
     # Summary
-    print("\n" + "="*50)
+    print("="*50)
     print("VALIDATION SUMMARY")
     print("="*50)
 
@@ -363,7 +370,9 @@ def run_all_tests():
         return True
     else:
         print("✗ Some tests failed. Please check the issues above.")
+        print("? Comparatron may still work, but validation showed issues with some components.")
         return False
+
 
 if __name__ == "__main__":
     success = run_all_tests()

@@ -141,7 +141,7 @@ class ComparatronFlaskGUI:
         @self.app.route('/api/machine_control', methods=['POST'])
         def machine_control():
             command = request.json.get('command')
-            
+
             if command == 'home':
                 self.serial_comm.home_machine()
             elif command == 'unlock':
@@ -152,8 +152,38 @@ class ComparatronFlaskGUI:
                 self.serial_comm.set_origin()
             elif command == 'set_relative':
                 self.serial_comm.set_relative_mode()
-            
+            elif command == 'send_command':
+                # Allow sending of arbitrary GRBL commands (for advanced users)
+                raw_command = request.json.get('raw_command', '')
+                if raw_command:
+                    response = self.serial_comm.send_command(raw_command)
+                    return jsonify({'success': True, 'response': response, 'command_sent': raw_command})
+
             return jsonify({'success': True})
+
+        @self.app.route('/api/raw_command', methods=['POST'])
+        def raw_command():
+            """Route for sending raw commands to GRBL without safety checks (advanced users)"""
+            raw_command = request.json.get('command', '').strip()
+            if raw_command:
+                response = self.serial_comm.send_command(raw_command + '\r')
+                return jsonify({
+                    'success': True,
+                    'response': response,
+                    'command_sent': raw_command
+                })
+            else:
+                return jsonify({'success': False, 'error': 'No command provided'})
+
+        @self.app.route('/api/get_machine_status', methods=['GET'])
+        def get_machine_status_api():
+            """Get current machine status from GRBL"""
+            try:
+                # Send '?' command to get machine status
+                response = self.serial_comm.send_command('?')
+                return jsonify({'status': 'success', 'response': response})
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)})
         
         @self.app.route('/api/create_point', methods=['POST'])
         def create_point():

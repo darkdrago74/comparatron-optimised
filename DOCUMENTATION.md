@@ -227,8 +227,14 @@ comparatron-optimised/
 │   ├── uninstall.sh                       # Complete uninstallation script (removes both Comparatron and LaserWeb4)
 │   ├── split_venv.sh                    # Split venv script
 │   └── venv_splits/                     # Split virtual env files
-├── documentation/         # Project documentation
-└── laserweb4/            # Optional LaserWeb4 integration (run on port 8080)
+├── DOCUMENTATION.md       # Complete project documentation (consolidated)
+├── comparatron_env/       # Virtual environment (not in repo)
+├── laserweb4/            # Optional LaserWeb4 integration (web interface on port 8000)
+│   ├── install_laserweb4_rpi.sh          # Raspberry Pi specific installer with recombination support
+│   ├── install_laserweb4_generic.sh      # Generic Linux installer with recombination support
+│   ├── split_laserweb4_env.sh            # Chunk LaserWeb4 environment for GitHub
+│   └── laserweb_splits/                  # LaserWeb4 environment split files (archived)
+└── uninstall.sh          # Complete uninstaller for Comparatron and LaserWeb4 (in dependencies/)
 ```
 
 ## Development

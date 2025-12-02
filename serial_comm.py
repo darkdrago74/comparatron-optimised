@@ -331,14 +331,63 @@ class SerialCommunicator:
     def get_machine_status(self):
         """
         Get current machine status and position
-        
+
         Returns:
             dict: Dictionary with status and position info
         """
         if not self.ser or not self.ser.is_open:
+            logging.warning("No active serial connection")
+            print("No active serial connection")
             return None
-        
-        # Query machine position
+
+        try:
+            # Send the status query command '?'
+            command_bytes = b'?\r'
+            logging.debug(f"Sending status query command: {command_bytes}")
+
+            # Send the command
+            bytes_written = self.ser.write(command_bytes)
+            self.ser.flush()  # Ensure data is sent
+
+            # Read response with timeout
+            response = None
+            start_time = time.time()
+            timeout = 2.0
+
+            while (time.time() - start_time) < timeout:
+                if self.ser.in_waiting > 0:
+                    response = self.ser.readline()
+                    response_str = response.decode('utf-8', errors='ignore').strip()
+                    logging.debug(f"Received status response: {response_str}")
+                    print(f"Status response: {response_str}")
+                    return response_str
+                time.sleep(0.05)
+
+            logging.warning("Timeout waiting for status response")
+            print("Timeout waiting for status response")
+            return None
+
+        except Exception as e:
+            logging.error(f"Error getting machine status: {e}")
+            print(f"Error getting machine status: {e}")
+            return None
+
+    def send_raw_command(self, raw_command):
+        """
+        Send a raw command to the machine without any safety checks
+
+        Args:
+            raw_command (str): Raw command to send
+
+        Returns:
+            str: Response from the machine, or None if error
+        """
+        # Add carriage return if not present
+        if not raw_command.endswith('\r'):
+            raw_command += '\r'
+
+        print(f"Sending raw command: {raw_command}")
+        return self.send_command(raw_command)
         self.ser.write(b'?\r')
         
         # Read response (with timeout)
