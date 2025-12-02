@@ -101,6 +101,22 @@
         .btn-warning:hover {
             background-color: #e68900;
         }
+        .btn-sm {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 12px;
+            margin: 2px 1px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .btn-sm:hover {
+            background-color: #45a049;
+        }
         .grid-container {
             display: grid;
             grid-template-columns: auto auto;
@@ -267,6 +283,60 @@
                     <button class="btn" onclick="machineControl('set_feed')">Set Feed (F2000)</button>
                     <button class="btn" onclick="machineControl('set_origin')">Set Origin (G92X0Y0)</button>
                     <button class="btn" onclick="machineControl('set_relative')">Set Relative (G91)</button>
+                </div>
+
+                <!-- Dangerous Manual Motion Controls (No Homing Required) -->
+                <div class="panel">
+                    <h3>Dangerous Manual Motion (No Homing!) <span style="color:red;">⚠️</span></h3>
+                    <div>
+                        <p style="color: red; font-weight: bold;">WARNING: These controls bypass safety checks!</p>
+                        <p>Do NOT use if machine is not properly positioned. Risk of collision!</p>
+                    </div>
+                    <div>
+                        <div style="margin-bottom: 10px;">
+                            <label>Manual Distance (mm):</label>
+                            <input type="number" id="manualDistance" value="10.0" step="any" min="0.01" style="width: 100px;">
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <button class="btn btn-danger" onclick="manualJog('x', -1)">X- (Left)</button>
+                            <button class="btn btn-danger" onclick="manualJog('x', 1)">X+ (Right)</button>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <button class="btn btn-danger" onclick="manualJog('y', -1)">Y- (Backward)</button>
+                            <button class="btn btn-danger" onclick="manualJog('y', 1)">Y+ (Forward)</button>
+                        </div>
+                        <div>
+                            <button class="btn btn-danger" onclick="manualJog('z', -1)">Z- (Down)</button>
+                            <button class="btn btn-danger" onclick="manualJog('z', 1)">Z+ (Up)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GRBL Console -->
+                <div class="panel">
+                    <h3>GRBL Console</h3>
+                    <div style="margin-bottom: 10px;">
+                        <label>Send Raw GRBL Command:</label>
+                        <input type="text" id="rawCommandInput" placeholder="Enter GRBL command (e.g., $$, $#, ?)" style="width: 200px;">
+                        <button class="btn" onclick="sendRawCommand()">Send Command</button>
+                    </div>
+                    <div>
+                        <label>Common Commands:</label><br>
+                        <button class="btn-sm" onclick="setCommandAndSend('$$')">$$ - View Settings</button>
+                        <button class="btn-sm" onclick="setCommandAndSend('$#')"> $# - View Parameters</button>
+                        <button class="btn-sm" onclick="setCommandAndSend('$G')"> $G - View G-Codes</button>
+                        <button class="btn-sm" onclick="setCommandAndSend('?')"> ? - Get Status</button>
+                        <button class="btn-sm" onclick="setCommandAndSend('$X')"> $X - Unlock</button>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label>Console Output:</label><br>
+                        <textarea id="consoleOutput" rows="10" cols="50" readonly style="width: 100%; font-family: monospace; background-color: #000; color: #0f0; padding: 10px;"></textarea>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button class="btn" onclick="clearConsole()">Clear Console</button>
+                        <button class="btn" onclick="getMachineStatus()">Get Machine Status (?)</button>
+                        <button class="btn" onclick="getStatusPeriodically()">Auto-Update Status</button>
+                    </div>
                 </div>
                 
                 <div class="panel">
@@ -737,6 +807,138 @@
             .catch(error => {
                 console.error('Error sending keyboard jog command:', error);
             });
+        }
+
+        // Manual motion functions without homing requirement
+        function manualJog(axis, direction) {
+            const distance = parseFloat(document.getElementById('manualDistance').value);
+
+            // Calculate actual distance based on direction
+            const actualDistance = distance * direction;
+
+            // Construct G-code command for relative movement
+            let command = 'G91\n'; // Set to relative mode
+            switch(axis) {
+                case 'x':
+                    command += `G1 X${actualDistance}\n`;
+                    break;
+                case 'y':
+                    command += `G1 Y${actualDistance}\n`;
+                    break;
+                case 'z':
+                    command += `G1 Z${actualDistance}\n`;
+                    break;
+            }
+            command += 'G90'; // Return to absolute mode
+
+            // Send the command via raw command API
+            const rawCmdData = {
+                command: 'send_command',
+                raw_command: command
+            };
+
+            fetch('/api/machine_control', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(rawCmdData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(`Manual jog command sent for ${axis}${direction === 1 ? '+' : '-'}:`, command);
+                addToConsole(`Sent: ${command.replace(/\n/g, ' ')}`);
+                if (data.response) {
+                    addToConsole(`Response: ${data.response}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending manual jog command:', error);
+                addToConsole(`Error: ${error.message || 'Unknown error'}`);
+            });
+        }
+
+        // Functions for GRBL console
+        function sendRawCommand() {
+            const command = document.getElementById('rawCommandInput').value.trim();
+            if (!command) {
+                alert('Please enter a command to send');
+                return;
+            }
+
+            fetch('/api/raw_command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({command: command})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addToConsole(`Sent: ${data.command_sent}`);
+                    if (data.response) {
+                        addToConsole(`Response: ${data.response}`);
+                    } else {
+                        addToConsole('Response: (no response)');
+                    }
+                } else {
+                    addToConsole(`Error: ${data.error || 'Unknown error'}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending raw command:', error);
+                addToConsole(`Error sending command: ${error.message || 'Unknown error'}`);
+            });
+        }
+
+        function setCommandAndSend(cmd) {
+            document.getElementById('rawCommandInput').value = cmd;
+            sendRawCommand();
+        }
+
+        function addToConsole(message) {
+            const console = document.getElementById('consoleOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            console.value += `[${timestamp}] ${message}\n`;
+            // Scroll to bottom
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('consoleOutput').value = '';
+        }
+
+        function getMachineStatus() {
+            fetch('/api/get_machine_status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success' && data.response) {
+                    addToConsole(`Status: ${data.response}`);
+                } else {
+                    addToConsole(`Error getting status: ${data.message || 'Unknown error'}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error getting machine status:', error);
+                addToConsole(`Error getting status: ${error.message || 'Unknown error'}`);
+            });
+        }
+
+        let statusInterval = null;
+        function getStatusPeriodically() {
+            if (statusInterval) {
+                // Stop if already running
+                clearInterval(statusInterval);
+                statusInterval = null;
+                document.querySelector('button[onclick="getStatusPeriodically()"]').textContent = 'Auto-Update Status';
+                addToConsole('Stopped auto-status updates');
+            } else {
+                // Start periodic updates
+                statusInterval = setInterval(getMachineStatus, 2000);
+                document.querySelector('button[onclick="getStatusPeriodically()"]').textContent = 'Stop Auto-Update';
+                addToConsole('Started auto-status updates (every 2 seconds)');
+            }
         }
     </script>
 </body>
