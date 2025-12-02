@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # LaserWeb4 Installation Script for Raspberry Pi
-# Optimized for Node.js v18.x for better serial communication compatibility
-# Follows official LaserWeb4 installation process with RPi-specific optimizations
+# Based on official LaserWeb4 Raspberry Pi installation guide:
+# https://laserweb.yurl.ch/documentation/installation/36-install-raspberry-pi
 
 # Colors for output
 RED='\033[0;31m'
@@ -11,221 +11,78 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=== LaserWeb4 Installation for Raspberry Pi (Node.js v18.x optimized) ===${NC}"
+echo -e "${BLUE}=== LaserWeb4 Installation for Raspberry Pi ===${NC}"
 
-# Check if Node.js and npm are installed
-echo -e "${YELLOW}Checking Node.js and npm...${NC}"
-if ! command -v node &> /dev/null && ! command -v nodejs &> /dev/null; then
+# Check for Node.js v18.x (recommended by official documentation)
+echo -e "${YELLOW}Checking Node.js version...${NC}"
+
+if command -v node &> /dev/null; then
+    NODE_VERSION=$(node --version | sed 's/v//' | cut -d. -f1)
+    NODE_FULL_VERSION=$(node --version)
+    echo -e "${GREEN}Current Node.js: $NODE_FULL_VERSION${NC}"
+    
+    if [ "$NODE_VERSION" -ne 18 ]; then
+        echo -e "${RED}ERROR: LaserWeb4 works best with Node.js v18.x${NC}"
+        echo -e "${RED}Current version: $NODE_FULL_VERSION${NC}"
+        echo -e "${YELLOW}Please install Node.js v18.x for optimal LaserWeb4 functionality:${NC}"
+        echo -e "${YELLOW}  curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
+        echo -e "${YELLOW}  sudo apt install -y nodejs${NC}"
+        exit 1
+    fi
+else
     echo -e "${RED}Error: Node.js is not installed.${NC}"
-    echo -e "${YELLOW}Installing Node.js v18.x for optimal LaserWeb4 compatibility...${NC}"
-
-    # Installing Node.js v18 for better LaserWeb4 serial communication compatibility
-    if command -v sudo &> /dev/null; then
-        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-        sudo apt install -y nodejs
-    else
-        echo -e "${RED}Error: sudo required for Node.js installation but not available.${NC}"
-        exit 1
-    fi
-fi
-
-# Check Node.js version and recommend v18.x if newer version is detected
-NODE_VERSION=$(node --version | sed 's/v//')
-NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
-if [ "$NODE_MAJOR" -gt 18 ]; then
-    echo -e "${YELLOW}Warning: Detected Node.js v$NODE_VERSION${NC}"
-    echo -e "${YELLOW}LaserWeb4 works best with Node.js v18.x for serial communication${NC}"
-    echo -e "${YELLOW}Consider installing Node.js v18.x for better Arduino/GRBL communication:${NC}"
-    echo -e "${YELLOW}  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && sudo apt install -y nodejs${NC}"
-    read -p "Continue with Node.js v$NODE_VERSION? (y/N): " -n 1 -r CONTINUE_NODE
-    echo
-    if [[ ! $CONTINUE_NODE =~ ^[Yy]$ ]]; then
-        echo -e "${RED}Installation cancelled. Install Node.js v18.x and try again.${NC}"
-        exit 1
-    fi
+    echo -e "${YELLOW}Install Node.js v18.x first:${NC}"
+    echo -e "${YELLOW}  curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash -${NC}"
+    echo -e "${YELLOW}  sudo apt install -y nodejs${NC}"
+    exit 1
 fi
 
 if ! command -v npm &> /dev/null; then
     echo -e "${RED}Error: npm is not installed.${NC}"
-    echo -e "${YELLOW}Please install npm first.${NC}"
     exit 1
 fi
 
-# Show version information
-if command -v node &> /dev/null; then
-    NODE_VERSION=$(node --version)
-    echo -e "${GREEN}Node.js: $NODE_VERSION${NC}"
-else
-    NODE_VERSION=$(nodejs --version)
-    echo -e "${GREEN}Node.js: $NODE_VERSION${NC}"
-fi
+echo -e "${GREEN}npm found: $(npm --version)${NC}"
 
-NPM_VERSION=$(npm --version)
-echo -e "${GREEN}npm: $NPM_VERSION${NC}"
-
-# Check if running on Raspberry Pi
-if [ ! -f "/opt/vc/bin/vcgencmd" ] && ! grep -q "Raspberry\|BCM\|raspberrypi\|armv7l\|aarch64" /proc/cpuinfo; then
-    echo -e "${RED}Warning: This script is intended for Raspberry Pi only.${NC}"
-    echo -e "${YELLOW}Consider using install_laserweb4_generic.sh for other systems.${NC}"
-fi
-
-# Install build tools (recommended for native modules like serialport on RPi)
-echo -e "${YELLOW}Installing build tools for native Node.js modules on RPi...${NC}"
-if command -v sudo &> /dev/null; then
-    sudo apt update -y
-    sudo apt install -y build-essential pkg-config libusb-1.0-0-dev libudev-dev python3-dev
-    echo -e "${GREEN}Build tools installed successfully${NC}"
-else
-    echo -e "${RED}Error: sudo is required to install build tools but not available.${NC}"
-    echo -e "${YELLOW}Install build tools manually: sudo apt install build-essential pkg-config libusb-1.0-0-dev${NC}"
-    exit 1
-fi
-
-# Install piwheels for faster ARM package installation (if available)
-if command -v pip3 &> /dev/null; then
-    echo -e "${YELLOW}Configuring piwheels for faster ARM package installation...${NC}"
-    pip3 install --upgrade pip
-fi
-
-# Install system dependencies required for LaserWeb4 on RPi
+# Install required system dependencies for Raspberry Pi
 echo -e "${YELLOW}Installing system dependencies for Raspberry Pi...${NC}"
 if command -v sudo &> /dev/null; then
-    # Update package lists first
-    sudo apt update -y
-    # Install dependencies commonly needed for LaserWeb4 on RPi
-    sudo apt install -y build-essential libusb-1.0-0-dev libudev-dev pkg-config libgtk-3-dev python3-dev python3-pip git
+    if command -v apt &> /dev/null; then
+        sudo apt update -y
+        sudo apt install -y build-essential git python3-dev pkg-config libusb-1.0-0-dev libudev-dev
+    else
+        echo -e "${RED}Error: APT package manager not found${NC}"
+        exit 1
+    fi
+else
+    echo -e "${RED}Error: sudo is required but not available.${NC}"
+    exit 1
 fi
 
-# Create user installation directory
+# Create installation directory
 INSTALL_DIR="$HOME/LaserWeb"
 echo -e "${YELLOW}Installing LaserWeb4 to: $INSTALL_DIR${NC}"
 
-# Check if LaserWeb installation exists, or if we have split files to recombine
-if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${GREEN}LaserWeb4 directory already exists${NC}"
-    cd "$INSTALL_DIR"
-elif [ -f "$(dirname "${BASH_SOURCE[0]}")/laserweb_splits/laserweb4_main.tar.gz" ]; then
-    echo -e "${YELLOW}Found chunked LaserWeb4 installation, recombining...${NC}"
+# Clone LaserWeb4 repository (as per official docs)
+git clone --depth 1 https://github.com/LaserWeb/LaserWeb4.git "$INSTALL_DIR"
+cd "$INSTALL_DIR"
 
-    # Extract the main tar.gz file to create the LaserWeb4 installation
-    echo -e "${YELLOW}Extracting LaserWeb4 installation from archive...${NC}"
-    cd "$HOME"
-    if tar -xzf "$(dirname "${BASH_SOURCE[0]}")/laserweb_splits/laserweb4_main.tar.gz"; then
-        # Verify extraction
-        if [ -d "LaserWeb" ]; then
-            echo -e "${GREEN}LaserWeb4 installation successfully recombined!${NC}"
-            cd LaserWeb
-        else
-            echo -e "${RED}Error: Failed to extract LaserWeb4 installation - extracted directory not found${NC}"
-            echo -e "${YELLOW}Falling back to repository clone...${NC}"
-            git clone --depth 1 https://github.com/LaserWeb/LaserWeb4.git "$INSTALL_DIR"
-            cd "$INSTALL_DIR"
-        fi
-    else
-        echo -e "${RED}Error: Failed to extract LaserWeb4 installation archive${NC}"
-        echo -e "${YELLOW}Falling back to repository clone...${NC}"
-        git clone --depth 1 https://github.com/LaserWeb/LaserWeb4.git "$INSTALL_DIR"
-        cd "$INSTALL_DIR"
-    fi
-    cd "$(dirname "${BASH_SOURCE[0]}")"  # Return to dependencies directory
-elif [ -f "$(dirname "${BASH_SOURCE[0]}")/laserweb_splits/laserweb4_part_aa" ]; then
-    echo -e "${YELLOW}Found chunked LaserWeb4 files, recombining...${NC}"
+# Initialize and update submodules (as per official docs)
+git submodule init
+git submodule update --remote
 
-    # Combine all chunk files to create the main archive
-    cd "$(dirname "${BASH_SOURCE[0]}")/laserweb_splits"
-    if cat laserweb4_part_* > ../laserweb4_main.tar.gz; then
-        cd ..
-        # Extract the recombined archive
-        echo -e "${YELLOW}Extracting LaserWeb4 installation from recombined archive...${NC}"
-        cd "$HOME"
-        if tar -xzf "Documents/comparatron-optimised/laserweb4/laserweb4_main.tar.gz"; then
-            # Verify extraction
-            if [ -d "LaserWeb" ]; then
-                echo -e "${GREEN}LaserWeb4 installation successfully recombined!${NC}"
-                cd LaserWeb
-            else
-                echo -e "${RED}Error: Failed to extract LaserWeb4 installation - extracted directory not found${NC}"
-                echo -e "${YELLOW}Falling back to repository clone...${NC}"
-                git clone --depth 1 https://github.com/LaserWeb/LaserWeb4.git "$INSTALL_DIR"
-                cd "$INSTALL_DIR"
-            fi
-        else
-            echo -e "${RED}Error: Failed to extract LaserWeb4 installation from recombined archive${NC}"
-            echo -e "${YELLOW}Falling back to repository clone...${NC}"
-            git clone --depth 1 https://github.com/LaserWeb/LaserWeb4.git "$INSTALL_DIR"
-            cd "$INSTALL_DIR"
-        fi
-    else
-        echo -e "${RED}Error: Failed to recombine LaserWeb4 installation splits${NC}"
-        echo -e "${YELLOW}Falling back to repository clone...${NC}"
-        git clone --depth 1 https://github.com/LaserWeb/LaserWeb4.git "$INSTALL_DIR"
-        cd "$INSTALL_DIR"
-    fi
-else
-    # Default behavior - clone from GitHub (follows standard installation)
-    echo -e "${YELLOW}Cloning LaserWeb4 repository (standard installation)...${NC}"
-    git clone --depth 1 https://github.com/LaserWeb/LaserWeb4.git "$INSTALL_DIR"
-    cd "$INSTALL_DIR"
-fi
+# Install lw.comm-server as per official documentation
+echo -e "${YELLOW}Installing lw.comm-server (for communication with GRBL)...${NC}"
+npm install lw.comm-server
 
-# Initialize and update submodules
-echo -e "${YELLOW}Initializing and updating git submodules...${NC}"
-git submodule init --quiet
-git submodule update --quiet --recursive
+# Install remaining dependencies
+echo -e "${YELLOW}Installing remaining dependencies...${NC}"
+npm install
 
-# Check Node.js version compatibility
-echo -e "${YELLOW}Checking Node.js version compatibility...${NC}"
-NODE_VERSION=$(node --version | sed 's/v//' | cut -d. -f1)
-if [ "$NODE_VERSION" -gt 18 ]; then
-    echo -e "${YELLOW}Node.js version is newer than recommended (v18.x)${NC}"
-    echo -e "${YELLOW}This may cause compatibility issues with native modules like serialport${NC}"
-fi
+# Create default configuration
+echo -e "${YELLOW}Creating default configuration...${NC}"
 
-# Install Node.js dependencies with compatibility fixes
-echo -e "${YELLOW}Installing Node.js dependencies (this may take a while)...${NC}"
-
-# Install with production flags and skip optional dependencies that may cause issues
-# Use --ignore-scripts to avoid compilation of native modules that are incompatible with Node.js v24.x
-npm install --production --no-optional --prefer-offline --no-audit --no-fund --legacy-peer-deps --ignore-scripts || {
-    echo -e "${YELLOW}Standard installation failed, trying with additional compatibility flags...${NC}"
-    npm install --production --no-optional --prefer-offline --no-audit --no-fund --legacy-peer-deps --ignore-scripts --engine-strict=false || {
-        echo -e "${YELLOW}Attempting installation without native module building (last resort)...${NC}"
-        npm install --production --no-optional --no-audit --no-fund --legacy-peer-deps --ignore-scripts --no-bin-links --force
-    }
-}
-
-# Install npm-run-all which is required for the start script (main issue fix)
-echo -e "${YELLOW}Installing npm-run-all which is required for running LaserWeb4...${NC}"
-npm install --save-dev npm-run-all --no-optional --legacy-peer-deps --ignore-scripts || {
-    # If dev install fails, try global 
-    if [ -n "$SUDO" ]; then
-        $SUDO npm install -g npm-run-all --no-optional --legacy-peer-deps --ignore-scripts || {
-            echo -e "${RED}Error: Could not install npm-run-all - this will cause the start script to fail${NC}"
-            exit 1
-        }
-    else
-        npm install -g npm-run-all --no-optional --legacy-peer-deps --ignore-scripts || {
-            echo -e "${RED}Error: Could not install npm-run-all - this will cause the start script to fail${NC}"
-            exit 1
-        }
-    fi
-}
-
-# Install lw.comm-server without native module requirements for Node.js v24.x compatibility
-echo -e "${YELLOW}Installing lw.comm-server with Node.js v24.x compatibility...${NC}"
-npm install lw.comm-server --no-optional --legacy-peer-deps --ignore-scripts --force || {
-    echo -e "${YELLOW}lw.comm-server installation failed due to native module incompatibility with Node.js v24.x${NC}"
-    echo -e "${YELLOW}LaserWeb4 will run without direct Arduino/GRBL communication features${NC}"
-    echo -e "${YELLOW}Use Comparatron interface for reliable CNC control instead${NC}"
-}
-
-# Set up configuration
-echo -e "${YELLOW}Setting up LaserWeb4 configuration...${NC}"
-
-CONFIG_FILE="$INSTALL_DIR/config.json"
-if [ ! -f "$CONFIG_FILE" ]; then
-    # Create default config file
-    cat > "$CONFIG_FILE" << EOF
+cat > config.json << EOF
 {
   "server": {
     "port": 8000,
@@ -234,8 +91,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     "socketIoPath": "/socket.io"
   },
   "app": {
-    "title": "LaserWeb4 - CNC Control",
-    "debug": false
+    "title": "LaserWeb4 - CNC Control"
   },
   "defaults": {
     "language": "en",
@@ -243,7 +99,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
   },
   "plugins": [
     "lw.comm",
-    "lw.gcode",
+    "lw.gcode", 
     "lw.grbl",
     "lw.cnc",
     "lw.dsp",
@@ -256,25 +112,91 @@ if [ ! -f "$CONFIG_FILE" ]; then
   ]
 }
 EOF
-    echo -e "${GREEN}Default configuration created${NC}"
-else
-    echo -e "${YELLOW}Configuration file already exists, keeping existing file${NC}"
-fi
 
-# Create a start script in the home directory
+# Create a systemd service for lw.comm-server to start on boot
+echo -e "${YELLOW}Creating lw.comm-server systemd service for automatic startup...${NC}"
+
+SERVICE_FILE="/etc/systemd/system/lw-comm-server.service"
+SERVICE_CONTENT="[Unit]
+Description=LaserWeb4 Communication Server
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$HOME/LaserWeb
+ExecStart=/usr/bin/npm run start-server
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target"
+
+echo "$SERVICE_CONTENT" | sudo tee "$SERVICE_FILE" >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable lw-comm-server.service
+echo -e "${GREEN}Created and enabled lw-comm-server service${NC}"
+
+# Create a systemd service for LaserWeb4 frontend
+echo -e "${YELLOW}Creating LaserWeb4 frontend systemd service for automatic startup...${NC}"
+
+FRONTEND_SERVICE_FILE="/etc/systemd/system/laserweb-frontend.service"
+FRONTEND_SERVICE_CONTENT="[Unit]
+Description=LaserWeb4 Frontend
+After=network.target lw-comm-server.service
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$HOME/LaserWeb
+ExecStart=/usr/bin/npm run start-app -- --port 8000 --host 0.0.0.0
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target"
+
+echo "$FRONTEND_SERVICE_CONTENT" | sudo tee "$FRONTEND_SERVICE_FILE" >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable laserweb-frontend.service
+echo -e "${GREEN}Created and enabled LaserWeb4 frontend service${NC}"
+
+# Create main service that coordinates both
+echo -e "${YELLOW}Creating main LaserWeb4 service...${NC}"
+
+MAIN_SERVICE_FILE="/etc/systemd/system/laserweb.service"
+MAIN_SERVICE_CONTENT="[Unit]
+Description=LaserWeb4 CNC Control System
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'cd $HOME/LaserWeb && npm-run-all -p -r start-app start-server'
+
+[Install]
+WantedBy=multi-user.target"
+
+echo "$MAIN_SERVICE_CONTENT" | sudo tee "$MAIN_SERVICE_FILE" >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable laserweb.service
+echo -e "${GREEN}Created and enabled main LaserWeb4 service${NC}"
+
+# Create a start script that follows the official documentation
 START_SCRIPT="$HOME/start_laserweb.sh"
 cat > "$START_SCRIPT" << 'EOF'
 #!/bin/bash
 # LaserWeb4 Start Script
+# Starts both the frontend and communication server
+
 echo "Starting LaserWeb4..."
 echo "Access the interface at: http://localhost:8000"
 echo "Access from other devices: http://[YOUR_COMPUTER_IP]:8000"
 
 cd $HOME/LaserWeb
 echo "Current directory: $(pwd)"
-echo "LaserWeb4 server is starting..."
 
-# Start LaserWeb4 server
+echo "LaserWeb4 server is starting..."
 npm start
 
 echo "LaserWeb4 server stopped."
@@ -283,11 +205,10 @@ EOF
 chmod +x "$START_SCRIPT"
 echo -e "${GREEN}Created start script at: $START_SCRIPT${NC}"
 
-# Add user to video and dialout groups for camera and serial access
+# Add user to dialout group for serial access
 if command -v sudo &> /dev/null; then
-    $SUDO usermod -a -G video $USER 2>/dev/null || echo -e "${YELLOW}Could not add to video group${NC}"
-    $SUDO usermod -a -G dialout $USER 2>/dev/null || echo -e "${YELLOW}Could not add to dialout group${NC}"
-    echo -e "${GREEN}Added user to video and dialout groups for camera and serial access${NC}"
+    sudo usermod -a -G dialout $USER
+    echo -e "${GREEN}Added user to dialout group for serial port access${NC}"
 fi
 
 echo -e "${GREEN}=== LaserWeb4 Installation completed ===${NC}"
@@ -296,8 +217,8 @@ echo -e "${GREEN}1. Run the start script: $START_SCRIPT${NC}"
 echo -e "${GREEN}2. Access the interface at: http://localhost:8000${NC}"
 echo -e "${GREEN}3. To access from another device: http://[YOUR_COMPUTER_IP]:8000${NC}"
 echo -e "${YELLOW}IMPORTANT:${NC}"
-echo -e "${YELLOW}  - The LaserWeb4 interface runs on port 8000 by default${NC}"
-echo -e "${YELLOW}  - For reliable CNC control, use the Comparatron interface${NC}"
-echo -e "${YELLOW}  - Node.js v24.x compatibility may limit direct serial communication${NC}"
-echo -e "${YELLOW}  - You may need to logout and login again for camera/serial group changes to take effect${NC}"
-echo -e "${YELLOW}  - LaserWeb4 may take a minute or two to fully start${NC}"
+echo -e "${YELLOW}  - LaserWeb4 requires Node.js v18.x for proper serial communication${NC}"
+echo -e "${YELLOW}  - The communication server (lw.comm-server) handles GRBL communication${NC}"
+echo -e "${YELLOW}  - Both services will start automatically on boot${NC}"
+echo -e "${YELLOW}  - You need to logout and login again for group changes to take effect${NC}"
+echo -e "${YELLOW}  - LaserWeb4 interface runs on port 8000 by default${NC}"
