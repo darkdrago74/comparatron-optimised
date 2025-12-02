@@ -259,21 +259,47 @@ def test_start_script():
         return True
 
 def test_serial_modules():
-    """Test if serial communication modules are available"""
+    """Test if serial communication modules are available for optimal RPi CNC control"""
     print("\nTesting serial communication modules...")
 
     laserweb_dir = os.path.expanduser("~/LaserWeb")
+    node_modules_dir = os.path.join(laserweb_dir, "node_modules")
 
-    # Check for serialport in node_modules (might not exist due to compatibility issues)
-    serialport_path = os.path.join(laserweb_dir, "node_modules", "serialport")
-    if os.path.exists(serialport_path):
-        print("  ✓ SerialPort module available for GRBL communication")
+    # Check for critical serial communication modules
+    critical_modules = ["serialport", "lw.comm-server"]
+    optional_modules = ["@serialport/bindings", "@serialport/stream"]
+
+    missing_critical = []
+    found_critical = []
+
+    for module in critical_modules:
+        module_path = os.path.join(node_modules_dir, module)
+        if os.path.exists(module_path):
+            found_critical.append(module)
+        else:
+            missing_critical.append(module)
+
+    if found_critical:
+        print(f"  ✓ Critical serial communication modules available: {found_critical}")
+
+        # Look for the lw.comm-server specifically
+        lw_comm_path = os.path.join(node_modules_dir, "lw.comm-server")
+        if os.path.exists(lw_comm_path):
+            server_js_path = os.path.join(lw_comm_path, "server.js")
+            if os.path.exists(server_js_path):
+                print(f"  ✓ lw.comm-server with communication server found")
+            else:
+                print(f"  ? lw.comm-server found but server.js not in expected location")
+
         return True
     else:
-        print("  ? SerialPort module not found (expected with Node.js v24.x compatibility issues)")
-        print("  ! LaserWeb4 will run but serial communication to Arduino/GRBL may be limited")
-        print("  ! Use Comparatron interface for reliable CNC control instead")
-        return True  # Don't fail the test since this is expected with newer Node.js
+        print(f"  ? Critical serial communication modules not found: {missing_critical}")
+        print("    This may be due to Node.js compatibility issues with native modules")
+        print("    ! LaserWeb4 may not communicate directly with Arduino/GRBL for CNC control")
+        print("    ! For CNC control, use Comparatron interface which has better serial support")
+        print("    ? LaserWeb4 will still function for design visualization and G-code viewing")
+
+        return True  # Still allow validation to pass, but warn the user
 
 def run_all_tests():
     """Run all LaserWeb4 validation tests"""

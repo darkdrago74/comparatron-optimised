@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # LaserWeb4 Installation Script for Raspberry Pi
-# Follows standard LaserWeb4 installation process optimized for RPi
+# Optimized for Node.js v18.x for better serial communication compatibility
+# Follows official LaserWeb4 installation process with RPi-specific optimizations
 
 # Colors for output
 RED='\033[0;31m'
@@ -10,15 +11,38 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=== LaserWeb4 Installation for Raspberry Pi ===${NC}"
+echo -e "${BLUE}=== LaserWeb4 Installation for Raspberry Pi (Node.js v18.x optimized) ===${NC}"
 
 # Check if Node.js and npm are installed
 echo -e "${YELLOW}Checking Node.js and npm...${NC}"
 if ! command -v node &> /dev/null && ! command -v nodejs &> /dev/null; then
     echo -e "${RED}Error: Node.js is not installed.${NC}"
-    echo -e "${YELLOW}Please install Node.js first:${NC}"
-    echo -e "${YELLOW}  curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt install -y nodejs${NC}"
-    exit 1
+    echo -e "${YELLOW}Installing Node.js v18.x for optimal LaserWeb4 compatibility...${NC}"
+
+    # Installing Node.js v18 for better LaserWeb4 serial communication compatibility
+    if command -v sudo &> /dev/null; then
+        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+        sudo apt install -y nodejs
+    else
+        echo -e "${RED}Error: sudo required for Node.js installation but not available.${NC}"
+        exit 1
+    fi
+fi
+
+# Check Node.js version and recommend v18.x if newer version is detected
+NODE_VERSION=$(node --version | sed 's/v//')
+NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
+if [ "$NODE_MAJOR" -gt 18 ]; then
+    echo -e "${YELLOW}Warning: Detected Node.js v$NODE_VERSION${NC}"
+    echo -e "${YELLOW}LaserWeb4 works best with Node.js v18.x for serial communication${NC}"
+    echo -e "${YELLOW}Consider installing Node.js v18.x for better Arduino/GRBL communication:${NC}"
+    echo -e "${YELLOW}  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && sudo apt install -y nodejs${NC}"
+    read -p "Continue with Node.js v$NODE_VERSION? (y/N): " -n 1 -r CONTINUE_NODE
+    echo
+    if [[ ! $CONTINUE_NODE =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Installation cancelled. Install Node.js v18.x and try again.${NC}"
+        exit 1
+    fi
 fi
 
 if ! command -v npm &> /dev/null; then
@@ -45,10 +69,17 @@ if [ ! -f "/opt/vc/bin/vcgencmd" ] && ! grep -q "Raspberry\|BCM\|raspberrypi\|ar
     echo -e "${YELLOW}Consider using install_laserweb4_generic.sh for other systems.${NC}"
 fi
 
-# Note: Skip build tools requirement for simplicity (native modules may fail but core functionality works)
-echo -e "${YELLOW}Note: Build tools (make, gcc, etc.) may be needed for native modules${NC}"
-echo -e "${YELLOW}If you encounter build errors, install build-essential package manually:${NC}"
-echo -e "${YELLOW}  sudo apt install build-essential pkg-config libusb-1.0-0-dev${NC}"
+# Install build tools (recommended for native modules like serialport on RPi)
+echo -e "${YELLOW}Installing build tools for native Node.js modules on RPi...${NC}"
+if command -v sudo &> /dev/null; then
+    sudo apt update -y
+    sudo apt install -y build-essential pkg-config libusb-1.0-0-dev libudev-dev python3-dev
+    echo -e "${GREEN}Build tools installed successfully${NC}"
+else
+    echo -e "${RED}Error: sudo is required to install build tools but not available.${NC}"
+    echo -e "${YELLOW}Install build tools manually: sudo apt install build-essential pkg-config libusb-1.0-0-dev${NC}"
+    exit 1
+fi
 
 # Install piwheels for faster ARM package installation (if available)
 if command -v pip3 &> /dev/null; then
