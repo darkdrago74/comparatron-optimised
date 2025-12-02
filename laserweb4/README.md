@@ -11,12 +11,23 @@ LaserWeb4 is a web-based interface for controlling laser cutters and CNC machine
 - File import and conversion
 - Multiple controller support
 
+## Node.js Version Recommendation
+
+For optimal serial communication with Arduino/GRBL controllers, LaserWeb4 works best with **Node.js v18.x**. On systems with newer Node.js versions (v20+), native module compatibility issues may limit direct serial communication functionality.
+
+### Installing Node.js v18.x on Raspberry Pi:
+
+```bash
+curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
 ## Installation
 
 To install LaserWeb4 on your Raspberry Pi:
 
 ```bash
-./install_laserweb4.sh
+./install_laserweb4_rpi.sh
 ```
 
 This will:
@@ -30,8 +41,8 @@ This will:
 ## Accessing the Interface
 
 After installation, access the web interface at:
-- Direct access: `http://[RASPBERRY_PI_IP]:8000`
-- Via nginx proxy: `http://[RASPBERRY_PI_IP]:8080` (if nginx configuration was selected)
+- Primary access: `http://localhost:8000`
+- Network access: `http://[YOUR_COMPUTER_IP]:8000`
 
 ## Configuration
 
@@ -47,3 +58,4 @@ LaserWeb4 runs on port 8000 by default, while Comparatron runs on port 5001, so 
 - The installation script is optimized for Raspberry Pi OS Bookworm
 - Auto-start service will launch LaserWeb4 on boot
 - Serial access requires user to be in dialout group (set up during installation)
+- For reliable CNC control, Comparatron interface (port 5001) provides better serial communication
