@@ -352,10 +352,8 @@ $VENV_PYTHON -m pip install --break-system-packages --upgrade pip
 
 # Ensure pip is accessible in the virtual environment and verify it's using the venv version
 if [ ! -f "$PROJECT_ROOT/comparatron_env/bin/pip" ]; then
-    # If pip executable doesn't exist, double-check that python -m pip works in the venv context
-    if [ "$VENV_PIP" != "$VENV_PYTHON -m pip" ]; then
-        VENV_PIP="$VENV_PYTHON -m pip"
-    fi
+    # If pip executable doesn't exist, use python -m pip approach
+    VENV_PIP="$VENV_PYTHON -m pip"
     echo -e "${YELLOW}Note: Using 'python -m pip' instead of direct pip executable${NC}"
 fi
 

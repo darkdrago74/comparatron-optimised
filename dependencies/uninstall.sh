@@ -96,6 +96,15 @@ else
     echo -e "${YELLOW}Comparatron virtual environment not found in home directory${NC}"
 fi
 
+# Remove LaserWeb4 installation (if exists)
+if [ -d "$HOME/LaserWeb" ]; then
+    rm -rf "$HOME/LaserWeb"
+    echo -e "${GREEN}Removed LaserWeb4 installation from home directory${NC}"
+else
+    echo -e "${YELLOW}LaserWeb4 installation directory not found${NC}"
+fi
+
+# Remove LaserWeb4 virtual environment (if exists as separate env)
 if [ -d "$HOME/laserweb_env" ]; then
     rm -rf "$HOME/laserweb_env"
     echo -e "${GREEN}Removed laserweb_env virtual environment${NC}"
