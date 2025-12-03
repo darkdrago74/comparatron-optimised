@@ -70,15 +70,13 @@ elif [ -d "$HOME/Documents/comparatron-optimised/comparatron_env" ]; then
     rm -rf "$HOME/Documents/comparatron-optimised/comparatron_env"
     echo -e "${GREEN}Removed Comparatron virtual environment from project directory${NC}"
 else
-    echo -e "${YELLOW}Comparatron virtual environment not found in project directory${NC}"
+    echo -e "${YELLOW}Comparatron virtual environment not found${NC}"
 fi
 
 # Check if the virtual environment exists in the home directory (older installations)
 if [ -d "$HOME/comparatron_env" ]; then
     rm -rf "$HOME/comparatron_env"
     echo -e "${GREEN}Removed Comparatron virtual environment from home directory${NC}"
-else
-    echo -e "${YELLOW}Comparatron virtual environment not found in home directory${NC}"
 fi
 
 # Do NOT remove LaserWeb4 installation - that's separate
@@ -86,6 +84,19 @@ echo -e "${YELLOW}Skipping LaserWeb4 installation removal - leaving intact${NC}"
 
 # Do NOT remove LaserWeb4 virtual environment - that's separate
 echo -e "${YELLOW}Skipping LaserWeb4 virtual environment removal - leaving intact${NC}"
+
+# Remove Comparatron configuration files only
+echo -e "${YELLOW}Removing Comparatron configuration files...${NC}"
+
+# Remove any comparatron config files
+rm -f "$HOME/comparatron_config.json" 2>/dev/null || true
+rm -f "$HOME/.comparatron_config" 2>/dev/null || true
+
+# Remove Comparatron startup script only
+rm -f "$HOME/start_comparatron.sh" 2>/dev/null || true
+
+# Remove any Comparatron related files in home directory
+rm -f "$HOME/comparatron.log" 2>/dev/null || true
 
 # Handle dialout group membership carefully - only remove if LaserWeb4 is NOT installed
 if [ "$LASERWEB_INSTALLED" = true ]; then
@@ -120,28 +131,8 @@ fi
 # The virtual environment contains all the required packages.
 echo -e "${YELLOW}Note: Comparatron packages were installed in virtual environment, no system packages to remove${NC}"
 
-# Remove only Comparatron specific configuration files
-echo -e "${YELLOW}Removing Comparatron configuration files...${NC}"
-
-# Remove any comparatron config files
-rm -f "$HOME/comparatron_config.json" 2>/dev/null || true
-rm -f "$HOME/.comparatron_config" 2>/dev/null || true
-
-# Remove only Comparatron startup script
-rm -f "$HOME/start_comparatron.sh" 2>/dev/null || true
-
-# Remove any temporary files from this script
+# Clean up any temporary files from this script
 rm -f requirements.txt 2>/dev/null || true
-
-# Remove any custom user groups assignments (just informational)
-echo -e "${YELLOW}User groups information:${NC}"
-if [ "$LASERWEB_INSTALLED" = true ]; then
-    echo -e "${YELLOW}Note: LaserWeb4 is installed, so user remains in video and dialout groups${NC}"
-else
-    echo -e "${YELLOW}To fully reverse group assignments, manually remove user from groups:${NC}"
-    echo -e "${YELLOW}  sudo deluser $USER video${NC}"
-    echo -e "${YELLOW}  sudo deluser $USER dialout${NC}"
-fi
 
 echo -e "${GREEN}=== Comparatron Only Uninstallation completed ===${NC}"
 echo -e "${GREEN}Comparatron components have been removed.${NC}"
