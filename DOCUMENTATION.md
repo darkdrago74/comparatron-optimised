@@ -25,7 +25,7 @@ Comparatron is an advanced optical comparator that combines:
 - Virtual environment management with split archives for GitHub
 
 The project also includes optional integration with LaserWeb4 for additional CNC control capabilities:
-- LaserWeb runs on port 8080 by default
+- LaserWeb runs on port 8000 by default
 - Provides g-code visualization and advanced motion control
 - Installation script can set up LaserWeb as a systemd service on Raspberry Pi systems
 
