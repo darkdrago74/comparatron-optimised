@@ -177,10 +177,18 @@ install_debian() {
     # Install system dependencies - avoid conflicting packages
     echo -e "${YELLOW}Installing system dependencies...${NC}"
     if [ -n "$SUDO" ]; then
-        $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libatlas3-base || {
-            echo -e "${YELLOW}Attempting to resolve dependency conflicts...${NC}"
+        # Avoid installing libilmbase-dev and libopenexr-dev which have known conflicts with libimath-dev
+        $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libhdf5-103 libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libatlas3-base || {
+            echo -e "${YELLOW}Standard installation failed, trying to resolve dependency conflicts...${NC}"
+
+            # Try to install without conflict-causing packages
             $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libhdf5-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev || {
-                echo -e "${YELLOW}Continuing without some optional dependencies...${NC}"
+                echo -e "${YELLOW}Attempting minimal installation without advanced imaging libraries...${NC}"
+                # Try minimal set needed for basic OpenCV functionality
+                $SUDO apt install -y python3 python3-pip python3-dev python3-venv build-essential libatlas-base-dev libjpeg-dev libpng-dev libtiff5-dev || {
+                    echo -e "${RED}Critical system dependencies installation failed${NC}"
+                    exit 1
+                }
             }
         }
     else
