@@ -1,96 +1,35 @@
-# Comparatron - Digital Optical Comparator Documentation
-
-Enhanced digital optical comparator software with CNC control for Arduino/GRBL-based systems.
-
-## Table of Contents
-1. [Overview](#overview)
-2. [Quick Start](#quick-start)
-3. [Key Features](#key-features)
-4. [System Requirements](#system-requirements)
-5. [Virtual Environment Management](#virtual-environment-management)
-6. [Serial Communication Setup](#serial-communication-setup)
-7. [Usage](#usage)
-8. [Troubleshooting](#troubleshooting)
-9. [Project Structure](#project-structure)
-10. [Development](#development)
-11. [Windows Executable Creation](#windows-executable-creation)
+# Comparatron - Complete Project Documentation
 
 ## Overview
+Comparatron is an advanced digital optical comparator that combines high-resolution camera capture, precision CNC control via Arduino/GRBL, and a web-based interface accessible from any device.
 
-Comparatron is an advanced optical comparator that combines:
-- High-resolution camera capture and display
-- Precision CNC control via Arduino/GRBL
-- Web-based interface accessible from any device
-- DXF export for CAD integration
-- Virtual environment management with split archives for GitHub
+## Installation Process
 
-The project also includes optional integration with LaserWeb4 for additional CNC control capabilities:
-- LaserWeb runs on port 8000 by default
-- Provides g-code visualization and advanced motion control
-- Installation script can set up LaserWeb as a systemd service on Raspberry Pi systems
+### Unified Installation Script
+The unified installation script (`install_dependencies.sh`) automatically detects your system type and performs the appropriate installation:
 
-## Quick Start
+- **Linux Desktop/Server (Fedora, Ubuntu, etc.)**: Installs system dependencies and Python packages directly to system Python
+- **Raspberry Pi**: Installs system dependencies, Python packages, and offers to set up auto-start service
 
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/darkdrago74/comparatron-optimised.git
-   cd comparatron-optimised
-   ```
-
-   additionally before starting :
-   ### Permissions possible issues
-The installation script adds your user to required groups:
-- `dialout` group for serial port access
-- `video` group for camera access
-
-If experiencing permission issues:
-```bash
-sudo usermod -a -G dialout $USER
-sudo usermod -a -G video $USER
+### Module Versions
+The installation uses exact package versions from `requirements.txt`:
 ```
-Log out and log back in for changes to take effect.
-
-2. Install dependencies:
-   ```bash
-   cd dependencies/
-   chmod +x install_dependencies_universal.sh
-   ./install_dependencies_universal.sh
-   ```
-
-   This script automatically detects your system (Fedora, Raspberry Pi, or other Linux) and installs appropriate dependencies. It also handles virtual environment recombination from split files if available.
-
-3. After installation, you'll need to log out and back in for proper serial port permissions.
-
-### Uninstallation
-
-If you need to remove Comparatron and all its components:
-```bash
-cd dependencies/
-chmod +x uninstall.sh
-./uninstall.sh
+blinker==1.9.0
+click==8.3.1
+ezdxf==1.4.3
+Flask==3.1.2
+fonttools==4.61.1
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+numpy==2.2.6
+opencv-python==4.12.0.88
+pillow==12.0.0
+pyparsing==3.2.5
+pyserial==3.5
+typing_extensions==4.15.0
+Werkzeug==3.1.4
 ```
-
-This will remove systemd services, virtual environments, and other configuration files created during installation.
-
-### Running the Application
-
-Start the web interface:
-```bash
-python3 main.py
-```
-
-Access the interface at: `http://localhost:5001`
-
-## Key Features
-
-- **Web Interface**: Accessible from any device on your network
-- **Camera Support**: Multiple camera detection and preview
-- **CNC Control**: Direct control of GRBL-based CNC machines
-- **Serial Communication**: Robust error handling with power state detection
-- **DXF Export**: Point measurements exported to CAD format
-- **Cross-platform**: Works on Fedora, Raspberry Pi, and other Linux systems
 
 ## System Requirements
 
@@ -105,112 +44,71 @@ Access the interface at: `http://localhost:5001`
 - For Fedora: `sudo dnf install python3 python3-pip python3-devel git`
 - For Raspberry Pi: `sudo apt install python3 python3-pip python3-dev git`
 
-### System Permissions (Required for Operation)
-- **Serial Port Access**: After installation, you must be added to the dialout group for serial communication with Arduino/GRBL:
-  ```bash
-  sudo usermod -a -G dialout $USER
-  ```
-  **Important: You need to log out and log back in for the group changes to take effect.** Without this, the system won't be able to communicate with your Arduino/GRBL CNC controller via serial port. Check that you're in the group after logging back in:
-  ```bash
-  groups $USER | grep dialout
-  ```
+### System Permissions
+- **Serial Port Access**: After installation, you must be added to the dialout group for serial communication with Arduino/GRBL
+- **Camera Access**: If cameras are not detected, you may need to add your user to the video group
 
-- **Camera Access**: If cameras are not detected, you may need to add your user to the video group:
-  ```bash
-  sudo usermod -a -G video $USER
-  ```
-  Then log out and log back in to apply the permissions.
+## Installation Validation
 
-## Virtual Environment Management
+The `validate_optimization.py` script performs comprehensive validation:
 
-The project uses a virtual environment split into 20MB chunks to comply with GitHub's 25MB file limit:
+1. **System Installation Check**: Verifies all required packages are available in system Python
+2. **Module Import Tests**: Tests importing all required modules (cv2, numpy, flask, PIL, serial, ezdxf)
+3. **Functional Tests**: Tests camera, serial, machine control, and DXF functionality
+4. **Script Validation**: Confirms installation and uninstall scripts exist and are executable
 
-- Virtual environment: `comparatron_env/` (created in project root)
-- Split files: `dependencies/venv_splits/`
-- Installation scripts automatically recombine the environment from split files if available
+## Raspberry Pi Specifics
 
-### Updating Virtual Environment
+### Auto-Start Service
+On Raspberry Pi systems, the installation script offers to enable an auto-start service that launches Comparatron on boot. This service runs via systemd and is accessible at `http://<your-pi-ip-address>:5001`.
 
-If dependencies change:
-```bash
-# Modify requirements in installation script
-# Then rerun split script
-cd dependencies/
-./split_venv.sh  # Creates new 20MB chunks
-```
+### Raspberry Pi OS (Bookworm) Optimizations
+- Uses piwheels.org for faster package installation
+- Optimizes for ARMv7 architecture
+- Sets up proper GPIO access if available
 
-### Virtual Environment Recombination
+## Key Features
 
-During installation, the system automatically detects and recombines the virtual environment:
-1. Checks for existing `comparatron_env` directory
-2. If not found, looks for `dependencies/venv_splits/comparatron_env_main.tar.gz`
-3. If not found, looks for split files (`comparatron_env_part_*`) and recombines them
-4. Extracts the virtual environment to the project root
-
-### PEP 668 Compliance and ARM Optimization
-
-The installation scripts now properly handle PEP 668 compliance on newer Linux systems (including Raspberry Pi OS bookworm) by:
-- Using the `--break-system-packages` flag when installing packages in virtual environments
-- Ensuring the virtual environment is properly activated before package installation
-- Adding verification steps in the validation script to check package installation
-- Enhanced pip command handling to ensure proper installation within the virtual environment
-- ARM/ARM64-specific optimizations with fallback mechanisms for OpenCV installation
-- Improved piwheels integration for faster ARM package installation
-- Better dependency conflict resolution for Raspberry Pi systems
-- Absolute path resolution to ensure proper virtual environment activation
-- Multiple fallback approaches for robust installation across different systems
-
-## Serial Communication Setup
-
-### Power Requirements
-- **USB Connection**: Provides data communication
-- **Main Power (12V/24V)**: Required for motor and driver operation
-- Both connections are required for full functionality
-
-
-## Usage
+- **Web Interface**: Accessible from any device on your network
+- **Camera Support**: Multiple camera detection and preview
+- **CNC Control**: Direct control of GRBL-based CNC machines
+- **Serial Communication**: Robust error handling with power state detection
+- **DXF Export**: Point measurements exported to CAD format
+- **Cross-platform**: Works on Fedora, Raspberry Pi, and other Linux systems
 
 ### Web Interface
-1. Start the application: `python3 main.py`
-2. Open browser to `http://localhost:5001`
-3. Select camera from available devices
-4. Connect to CNC via serial port (requires both USB and main power)
-5. Home the machine using the HOME button
-6. Capture points using the interface controls
-7. Export measurements as DXF file
+The main interface is Flask-based, accessible at `http://localhost:5001`
 
-### CNC Controls
-- **Home**: Move all axes to home position (`$H` command)
-- **Unlock**: Unlock machine from alarm state (`$X` command)
-- **Jog**: Manual axis movement
-- **Feed Rate**: Set movement speed
+### Machine Control
+- CNC movement control via GRBL/Arduino
+- Jog distance and feed rate control
+- Position reporting and status monitoring
 
-### Error Messages
-Common error messages and solutions:
-- **"No response from GRBL controller"**: Check main power (12V/24V) connection
-- **"Device detected but no response"**: Verify power connections to motors/drivers
-- **"Permission denied"**: Ensure user is in `dialout` group
+### Camera Management
+- Automatic camera detection
+- Real-time preview
+- Calibration support
+
+### Serial Communication
+- Robust error handling
+- Power state detection
+- Command queuing and response management
 
 ## Troubleshooting
 
-### Camera Not Detected
-1. Check camera connections
-2. Verify user is in `video` group: `groups $USER | grep video`
-3. Restart camera service or reboot if needed
+### Service Management (Raspberry Pi)
+- Check service status: `sudo systemctl status comparatron`
+- Start service: `sudo systemctl start comparatron`
+- Stop service: `sudo systemctl stop comparatron`
+- Enable auto-start: `sudo systemctl enable comparatron`
+- Disable auto-start: `sudo systemctl disable comparatron`
 
-### Serial Connection Issues
-1. Verify USB cable connection
-2. Ensure main power (12V/24V) is connected to CNC shield
-3. Check that user is in `dialout` group: `groups $USER | grep dialout`
-4. Look for proper device in `/dev/ttyUSB*` or `/dev/ttyACM*`
-
-### Web Interface Not Loading
-1. Check firewall settings for port 5001
-2. Verify Flask installation in virtual environment
-3. Check browser console for JavaScript errors
+### Common Issues
+- **Camera not detected**: Check video group membership with `groups $USER | grep video`
+- **Serial port access denied**: Check dialout group membership with `groups $USER | grep dialout`
+- **Web interface not accessible**: Verify firewall settings allow port 5001
 
 ## Project Structure
-
 ```
 comparatron-optimised/
 ├── main.py                 # Main application entry point
@@ -220,157 +118,19 @@ comparatron-optimised/
 ├── machine_control.py     # Machine control commands
 ├── dxf_handler.py         # DXF file processing
 ├── validate_optimization.py # Installation validation
-├── comparatron_env/       # Virtual environment (not in repo)
-├── dependencies/          # Installation scripts and split venv
-│   ├── install_dependencies_universal.sh  # Universal installer with recombination
-│   ├── install_dependencies_generic.sh    # Generic installer with recombination
-│   ├── uninstall.sh                       # Complete uninstallation script (removes both Comparatron and LaserWeb4)
-│   ├── split_venv.sh                    # Split venv script
-│   └── venv_splits/                     # Split virtual env files
-├── DOCUMENTATION.md       # Complete project documentation (consolidated)
-├── comparatron_env/       # Virtual environment (not in repo)
-├── laserweb4/            # Optional LaserWeb4 integration (web interface on port 8000)
-│   ├── install_laserweb4_rpi.sh          # Raspberry Pi specific installer with recombination support
-│   ├── install_laserweb4_generic.sh      # Generic Linux installer with recombination support
-│   ├── split_laserweb4_env.sh            # Chunk LaserWeb4 environment for GitHub
-│   └── laserweb_splits/                  # LaserWeb4 environment split files (archived)
-└── uninstall.sh          # Complete uninstaller for Comparatron and LaserWeb4 (in dependencies/)
+├── DOCUMENTATION.md       # Complete project documentation
+├── dependencies/          # Installation scripts and dependencies
+│   ├── install_dependencies.sh  # Unified installer (Linux & Raspberry Pi)
+│   ├── uninstall.sh             # Uninstaller
+│   └── requirements.txt         # Python package requirements (exact versions)
+└── laserweb4/            # Optional LaserWeb4 integration
 ```
 
-## Development
+## Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
-### Adding Dependencies
-Add new packages by modifying the installation scripts in `dependencies/` and recreating the virtual environment split:
-```bash
-cd dependencies/
-./split_venv.sh
-```
-
-### Validation
-Run the validation script to check all components:
-```bash
-python3 validate_optimization.py
-```
-
-## Windows Executable Creation
-
-This document explains how to create a standalone Windows executable for the Comparatron Flask-based software using PyInstaller.
-
-### Important Note: Web-Based Architecture
-
-The current Comparatron uses a **Flask web interface** which creates a web server that can be accessed through any browser at `http://localhost:5001`. Unlike traditional desktop applications, this creates a web server that runs locally but requires a browser for the interface.
-
-### Prerequisites
-
-- Python installed on your Windows system (3.7 or later)
-- All required dependencies installed (numpy, flask, pyserial, opencv-python, ezdxf, pillow)
-- PyInstaller installed (install with `pip install pyinstaller`)
-
-### Creating the Executable
-
-#### Option 1: Flask Server Executable (Primary Method)
-This creates an executable that starts the Flask server:
-
-```bash
-pyinstaller main.py --name ComparatronWeb --add-data "templates;templates" --add-data "LICENSE;." --add-data "README.md;."
-```
-
-#### Option 2: One-File Executable
-This creates a single .exe file that contains everything:
-
-```bash
-pyinstaller main.py -F --name ComparatronWeb --add-data "templates;templates" --add-data "LICENSE;." --add-data "README.md;."
-```
-
-### PyInstaller Options Explained
-
-- `-F` or `--onefile`: Creates a single executable file (larger, slower startup)
-- `--name`: Sets the name of the executable
-- `--add-data`: Includes additional files/directories in the executable
-  - Format on Windows: `"source;destination"`
-  - Format on Linux/Mac: `"source:destination"`
-- `--hidden-import`: Explicitly include modules that PyInstaller might miss
-- `--collect-all`: Collect all files from a package
-
-### Recommended Command
-
-For the best results with the Comparatron Flask application, use this command:
-
-```bash
-pyinstaller main.py --name ComparatronFlask --add-data "templates;templates" --add-data "LICENSE;." --add-data "README.md;." --hidden-import=flask --hidden-import=cv2 --hidden-import=PIL --hidden-import=serial --hidden-import=ezdxf
-```
-
-### Alternative: Enhanced Launcher Batch File
-
-Since the Flask web interface requires a browser, consider creating both the executable and a batch file that starts it and opens the browser automatically:
-
-Create `launch_comparatron.bat`:
-```batch
-@echo off
-REM Comparatron Launcher
-REM Starts the Flask server and opens the browser automatically
-
-echo Starting Comparatron Flask Server...
-echo Opening browser at http://localhost:5001
-
-REM Change to the script's directory
-cd /d "%~dp0"
-
-REM Activate virtual environment if it exists
-if exist "comparatron_env\Scripts\activate.bat" (
-    call comparatron_env\Scripts\activate.bat
-)
-
-REM Start the Flask server in the background
-start python main.py
-
-REM Wait for server to start, then open browser
-timeout /t 3 /nobreak >nul
-start http://localhost:5001
-
-echo Comparatron is running. Browse to http://localhost:5001
-echo Close this window to stop the server.
-pause
-```
-
-### Troubleshooting
-
-#### Common Issues and Solutions:
-
-1. **Missing templates error**
-   - Ensure `--add-data "templates;templates"` is included
-   - Flask needs access to the templates directory
-
-2. **Import errors after building**
-   - Add `--hidden-import=module_name` for each missing module
-   - Common ones: `--hidden-import=flask`, `--hidden-import=cv2`
-
-3. **Large file size**
-   - Flask applications tend to be larger due to web framework requirements
-   - Consider distributing as a directory instead of single file
-
-4. **Template directory not found**
-   - If using one-file approach, some resources might not resolve properly
-   - Consider using directory-based executable for reliability
-
-### Distribution
-
-After building, distribute:
-- The executable in the `dist/` folder
-- A shortcut or batch file that opens the browser to `http://localhost:5001`
-- Inform users that the interface will be available in their browser
-
-### User Experience
-
-When users run the executable:
-1. A console window appears showing server startup
-2. The Flask server starts listening on `http://localhost:5001`
-3. Users access the interface by opening a browser
-4. All functionality is available through the web interface
-
-### Important Considerations
-
-- **Internet Browser Required**: Users must have a web browser installed
-- **Local Network Access**: The interface can be accessed from other devices on the same network
-- **Multiple Interfaces**: Both the Flask web interface and any browser can access the same server
-- **Port Configuration**: The server runs on port 5001 by default
+## Support
+For issues or questions, please open an issue on the GitHub repository.

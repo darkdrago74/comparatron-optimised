@@ -9,7 +9,7 @@ Comparatron is an advanced optical comparator that combines:
 - Precision CNC control via Arduino/GRBL
 - Web-based interface accessible from any device
 - DXF export for CAD integration
-- Virtual environment management with split archives for GitHub
+- DXF export for CAD integration
 
 The project also includes optional integration with LaserWeb4 for additional CNC control capabilities:
 - **LaserWeb4 works best with Node.js v18.x** for proper serial communication with GRBL
@@ -21,55 +21,44 @@ The project also includes optional integration with LaserWeb4 for additional CNC
 
 ### Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/darkdrago74/comparatron-optimised.git
-   cd comparatron-optimised
-   ```
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/darkdrago74/comparatron-optimised.git
+    cd comparatron-optimised
+    ```
 
-   additionally before starting :
-   ### Permissions possible issues
-The installation script adds your user to required groups:
-- `dialout` group for serial port access
-- `video` group for camera access
+2.  **Run the unified installation script:**
+    ```bash
+    cd dependencies
+    chmod +x install_dependencies.sh
+    ./install_dependencies.sh
+    ```
+    This script will automatically detect your system:
+    *   **Linux (Fedora, Ubuntu, etc.)**: Install system dependencies and Python packages
+    *   **Raspberry Pi**: Install system dependencies, Python packages, and optional systemd service for boot startup
 
-If experiencing permission issues:
-```bash
-sudo usermod -a -G dialout $USER
-sudo usermod -a -G video $USER
-```
-Log out and back in for changes to take effect.
-
-2. Install dependencies:
-   ```bash
-   cd dependencies/
-   chmod +x install_dependencies_universal.sh
-   ./install_dependencies_universal.sh
-   ```
-
-   This script automatically detects your system (Fedora, Raspberry Pi, or other Linux) and installs appropriate dependencies. It also handles virtual environment recombination from split files if available.
-
-3. After installation, you'll need to log out and back in for proper serial port permissions.
+3.  **Log out and log back in:**
+    This is required for the user group changes (`video`, `dialout`) to take effect, which are necessary for camera and serial port access.
 
 ### Uninstallation
 
-If you need to remove Comparatron and all its components:
+To remove Comparatron and its components:
 ```bash
-cd dependencies/
+cd dependencies
 chmod +x uninstall.sh
 ./uninstall.sh
 ```
 
-This will remove systemd services, virtual environments, and other configuration files created during installation.
-
 ### Running the Application
 
-Start the web interface:
+**Manual start:**
 ```bash
-python3 main.py
+python main.py
 ```
 
-Access the interface at: `http://localhost:5001`
+**On Raspberry Pi with auto-start enabled**, the application starts automatically on boot. Access it at `http://<your-pi-ip-address>:5001`.
+
+**Manual access**: Open a web browser to `http://localhost:5001`.
 
 ## Key Features
 
@@ -109,100 +98,7 @@ Access the interface at: `http://localhost:5001`
   ```
   Then log out and log back in to apply the permissions.
 
-## Virtual Environment Management
 
-The project uses a virtual environment split into 20MB chunks to comply with GitHub's 25MB file limit:
-
-- Virtual environment: `comparatron_env/` (created in project root)
-- Split files: `dependencies/venv_splits/`
-- Installation scripts automatically recombine the environment from split files if available
-
-### Updating Virtual Environment
-
-If dependencies change:
-```bash
-# Modify requirements in installation script
-# Then rerun split script
-cd dependencies/
-./split_venv.sh  # Creates new 20MB chunks
-```
-
-### Virtual Environment Recombination
-
-During installation, the system automatically detects and recombines the virtual environment:
-1. Checks for existing `comparatron_env` directory
-2. If not found, looks for `dependencies/venv_splits/comparatron_env_main.tar.gz`
-3. If not found, looks for split files (`comparatron_env_part_*`) and recombines them
-4. Extracts the virtual environment to the project root
-
-### PEP 668 Compliance and ARM Optimization
-
-The installation scripts now properly handle PEP 668 compliance on newer Linux systems (including Raspberry Pi OS bookworm) by:
-- Using the `--break-system-packages` flag when installing packages in virtual environments
-- Ensuring the virtual environment is properly activated before package installation
-- Adding verification steps in the validation script to check package installation
-- Enhanced pip command handling to ensure proper installation within the virtual environment
-- ARM/ARM64-specific optimizations with fallback mechanisms for OpenCV installation
-- Improved piwheels integration for faster ARM package installation
-- Better dependency conflict resolution for Raspberry Pi systems
-- Absolute path resolution to ensure proper virtual environment activation
-- Multiple fallback approaches for robust installation across different systems
-
-## Serial Communication Setup
-
-### Power Requirements
-- **USB Connection**: Provides data communication
-- **Main Power (12V/24V)**: Required for motor and driver operation
-- Both connections are required for full functionality
-
-
-## Usage
-
-### Web Interface
-1. Start the application: `python3 main.py`
-2. Open browser to `http://localhost:5001`
-3. Select camera from available devices
-4. Connect to CNC via serial port (requires both USB and main power)
-5. Home the machine using the HOME button
-6. Capture points using the interface controls
-7. Export measurements as DXF file
-
-### CNC Controls
-- **Home**: Move all axes to home position (`$H` command)
-- **Unlock**: Unlock machine from alarm state (`$X` command)
-- **Jog**: Manual axis movement
-- **Feed Rate**: Set movement speed
-
-### LaserWeb Integration
-The project includes LaserWeb4 integration for additional CNC control capabilities:
-- LaserWeb runs on port **8000** by default
-- Access at: `http://localhost:8000`
-- The installation script can set up LaserWeb as a systemd service on Raspberry Pi systems
-- LaserWeb provides additional features like g-code visualization and advanced motion control
-
-### Error Messages
-Common error messages and solutions:
-- **"No response from GRBL controller"**: Check main power (12V/24V) connection
-- **"Device detected but no response"**: Verify power connections to motors/drivers
-- **"Permission denied"**: Ensure user is in `dialout` group
-
-## Troubleshooting
-
-### Camera Not Detected
-1. Check camera connections
-2. Verify user is in `video` group: `groups $USER | grep video`
-3. Restart camera service or reboot if needed
-
-### Serial Connection Issues
-1. Verify USB cable connection
-2. Ensure main power (12V/24V) is connected to CNC shield
-3. Check that user is in `dialout` group: `groups $USER | grep dialout`
-4. Look for proper device in `/dev/ttyUSB*` or `/dev/ttyACM*`
-
-### Web Interface Not Loading
-1. Check firewall settings for port 5001
-2. Verify Flask installation in virtual environment
-3. Check browser console for JavaScript errors
 
 ## Project Structure
 
@@ -216,29 +112,11 @@ comparatron-optimised/
 ├── dxf_handler.py         # DXF file processing
 ├── validate_optimization.py # Installation validation
 ├── DOCUMENTATION.md       # Complete project documentation
-├── comparatron_env/       # Virtual environment (not in repo)
-├── dependencies/          # Installation scripts and split venv
-│   ├── install_dependencies_universal.sh  # Universal installer with recombination
-│   ├── install_dependencies_generic.sh    # Generic installer with recombination
-│   ├── uninstall.sh                       # Complete uninstallation script (removes both Comparatron and LaserWeb4)
-│   ├── split_venv.sh                    # Split venv script
-│   └── venv_splits/                     # Split virtual env files
-└── laserweb4/            # Optional LaserWeb4 integration (web interface on port 8000)
-```
-
-## Development
-
-### Adding Dependencies
-Add new packages by modifying the installation scripts in `dependencies/` and recreating the virtual environment split:
-```bash
-cd dependencies/
-./split_venv.sh
-```
-
-### Validation
-Run the validation script to check all components:
-```bash
-python3 validate_optimization.py
+├── dependencies/          # Installation scripts and dependencies
+│   ├── install_dependencies.sh  # Unified installer (Linux & Raspberry Pi)
+│   ├── uninstall.sh             # Uninstaller
+│   └── requirements.txt         # Python package requirements (exact versions)
+└── laserweb4/            # Optional LaserWeb4 integration
 ```
 
 ## Contributing

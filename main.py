@@ -18,36 +18,24 @@ import subprocess
 from pathlib import Path
 
 def setup_virtual_environment():
-    """Detect and set up the virtual environment if available."""
-    # Look for virtual environment relative to this script's location
-    script_dir = Path(__file__).parent.absolute()
-    venv_paths = [
-        script_dir / "dependencies" / "comparatron_env",
-        Path.home() / "comparatron_env",
-        Path(os.environ.get("VIRTUAL_ENV", "")) if os.environ.get("VIRTUAL_ENV") else None
-    ]
-    
-    for venv_path in venv_paths:
-        if venv_path and venv_path.exists():
-            venv_bin = venv_path / "bin" if os.name != "nt" else venv_path / "Scripts"
-            python_executable = venv_bin / "python3"
-            
-            if python_executable.exists():
-                # Check if we're already running in the virtual environment
-                current_prefix = Path(sys.prefix)
-                if current_prefix.resolve() != venv_path.resolve():
-                    print(f"Virtual environment detected at: {venv_path}")
-                    print("Re-executing with virtual environment...")
-                    
-                    # Re-execute the script using the virtual environment's Python
-                    os.execv(str(python_executable), [str(python_executable), str(Path(__file__))] + sys.argv[1:])
-                else:
-                    print(f"Already running in virtual environment: {current_prefix}")
-                    return True
-    
-    # If no virtual environment found, continue with system installation
-    print("No virtual environment detected, using system Python installation")
-    return False
+    """Check if using virtual environment, otherwise use system installation."""
+    # Check if we're already running in a virtual environment
+    current_prefix = Path(sys.prefix)
+    venv_path = Path(__file__).parent.absolute() / "dependencies" / "comparatron_env"
+
+    # Check if we're already running in the virtual environment
+    if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+        print(f"Currently running in virtual environment: {current_prefix}")
+        return True
+    elif venv_path.exists():
+        # Virtual environment exists but we're not in it
+        print(f"Virtual environment detected at: {venv_path}, but not active")
+        print("Consider activating it or using system installation")
+        return False
+    else:
+        # No virtual environment, use system installation
+        print("Using system Python installation")
+        return False
 
 def main():
     """Main entry point with virtual environment support."""
