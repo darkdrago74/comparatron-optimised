@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Comparatron - Calibration Settings</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .top-nav {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .top-nav a {
+            margin: 0 10px;
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .top-nav a:hover {
+            background-color: #45a049;
+        }
+        .panel {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .panel h3 {
+            margin-top: 0;
+            color: #444;
+        }
+        .grbl-params-grid {
+            display: grid;
+            grid-template-columns: 0.25fr 1fr 0.25fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .param-header {
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+            background-color: #e0e0e0;
+        }
+        .param-row {
+            display: contents;
+        }
+        .param-name, .param-value, .param-info {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        .param-value input {
+            width: 80%;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .info-btn {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .info-btn:hover {
+            background-color: #1976D2;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .btn-warning {
+            background-color: #ff9800;
+        }
+        .btn-warning:hover {
+            background-color: #e68900;
+        }
+        .btn-danger {
+            background-color: #f44336;
+        }
+        .btn-danger:hover {
+            background-color: #da190b;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 10px;
+            align-items: center;
+        }
+        .status-message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Comparatron - Calibration Settings</h1>
+        
+        <div class="top-nav">
+            <a href="/">← Back to Main Interface</a>
+        </div>
+
+        <div class="panel">
+            <h3>GRBL Settings</h3>
+            <p><em>Settings ($$): Configuration values like steps per mm, max rates, etc. - stored in EEPROM and persist after power cycle.</em></p>
+            <div class="loading" id="settingsLoading">Loading settings...</div>
+            <div id="settingsContainer">
+                <div class="grid-container">
+                    <div></div>
+                    <div>
+                        <button class="btn" onclick="loadSettings()">Refresh Settings ($$)</button>
+                        <button class="btn btn-warning" onclick="loadParameters()">Load Parameters ($#)</button>
+                    </div>
+                </div>
+                <div class="grbl-params-grid" id="settingsGrid">
+                    <!-- Settings will be loaded here -->
+                    <div class="param-header">Parameter</div>
+                    <div class="param-header">Value</div>
+                    <div class="param-header">Info</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>GRBL Parameters</h3>
+            <p><em>Parameters ($#): Runtime values like work coordinate offsets - not stored in EEPROM, reset after power cycle.</em></p>
+            <div class="loading" id="paramsLoading">Loading parameters...</div>
+            <div id="paramsContainer">
+                <div class="grbl-params-grid" id="paramsGrid">
+                    <!-- Parameters will be loaded here -->
+                    <div class="param-header">Parameter</div>
+                    <div class="param-header">Value</div>
+                    <div class="param-header">Info</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>Actions</h3>
+            <button class="btn" onclick="updateAllSettings()">Update All Settings</button>
+            <button class="btn btn-warning" onclick="resetToDefaults()">Reset to Defaults</button>
+            <button class="btn btn-danger" onclick="saveToEEPROM()">Save to EEPROM</button>
+        </div>
+
+        <div id="statusMessage" class="status-message"></div>
+    </div>
+
+    <script>
+        let settingsList = [];
+        let parametersList = [];
+
+        // Show status message
+        function showStatus(message, isError = false) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${isError ? 'status-error' : 'status-success'}`;
+            statusDiv.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // Parse GRBL response into structured data
+        function parseGrblResponse(response) {
+            const lines = response.split('\n');
+            const result = [];
+            
+            for (const line of lines) {
+                if (line.trim() === '') continue;
+                
+                // Skip 'ok' responses
+                if (line.trim().toLowerCase() === 'ok') continue;
+                
+                // Match format: $N=value or [N:val] format
+                const settingMatch = line.match(/^\$(\d+)=(.*)/);
+                if (settingMatch) {
+                    result.push({
+                        param: `$${settingMatch[1]}`,
+                        value: settingMatch[2],
+                        raw: line
+                    });
+                }
+                
+                // Alternative format for parameters: [N:val]
+                const paramMatch = line.match(/^\[(\d+):(.*)\]/);
+                if (paramMatch) {
+                    result.push({
+                        param: `$${paramMatch[1]}`,
+                        value: paramMatch[2],
+                        raw: line
+                    });
+                }
+            }
+            
+            return result;
+        }
+
+        // Load GRBL settings ($$)
+        function loadSettings() {
+            document.getElementById('settingsLoading').style.display = 'block';
+            
+            fetch('/api/settings_list', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('settingsLoading').style.display = 'none';
+                
+                if (data.success) {
+                    settingsList = parseGrblResponse(data.response);
+                    renderSettingsGrid();
+                    showStatus('Settings loaded successfully');
+                } else {
+                    showStatus(`Error loading settings: ${data.error || data.message}`, true);
+                }
+            })
+            .catch(error => {
+                document.getElementById('settingsLoading').style.display = 'none';
+                console.error('Error loading settings:', error);
+                showStatus(`Error loading settings: ${error.message}`, true);
+            });
+        }
+
+        // Load GRBL parameters ($#)
+        function loadParameters() {
+            document.getElementById('paramsLoading').style.display = 'block';
+            
+            fetch('/api/parameters_list', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('paramsLoading').style.display = 'none';
+                
+                if (data.success) {
+                    parametersList = parseGrblResponse(data.response);
+                    renderParametersGrid();
+                    showStatus('Parameters loaded successfully');
+                } else {
+                    showStatus(`Error loading parameters: ${data.error || data.message}`, true);
+                }
+            })
+            .catch(error => {
+                document.getElementById('paramsLoading').style.display = 'none';
+                console.error('Error loading parameters:', error);
+                showStatus(`Error loading parameters: ${error.message}`, true);
+            });
+        }
+
+        // Render settings grid
+        function renderSettingsGrid() {
+            const grid = document.getElementById('settingsGrid');
+            // Clear existing content except headers
+            while (grid.children.length > 3) {
+                grid.removeChild(grid.lastChild);
+            }
+            
+            settingsList.forEach(item => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'param-row';
+                
+                // Parameter name cell
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'param-name';
+                nameDiv.textContent = item.param;
+                
+                // Value input cell
+                const valueDiv = document.createElement('div');
+                valueDiv.className = 'param-value';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = item.value;
+                input.dataset.param = item.param;
+                valueDiv.appendChild(input);
+                
+                // Info button cell
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'param-info';
+                const infoBtn = document.createElement('button');
+                infoBtn.className = 'info-btn';
+                infoBtn.textContent = '?';
+                infoBtn.onclick = () => showInfoPopup(item);
+                infoDiv.appendChild(infoBtn);
+                
+                rowDiv.appendChild(nameDiv);
+                rowDiv.appendChild(valueDiv);
+                rowDiv.appendChild(infoDiv);
+                
+                grid.appendChild(rowDiv);
+            });
+        }
+
+        // Render parameters grid
+        function renderParametersGrid() {
+            const grid = document.getElementById('paramsGrid');
+            // Clear existing content except headers
+            while (grid.children.length > 3) {
+                grid.removeChild(grid.lastChild);
+            }
+            
+            parametersList.forEach(item => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'param-row';
+                
+                // Parameter name cell
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'param-name';
+                nameDiv.textContent = item.param;
+                
+                // Value input cell
+                const valueDiv = document.createElement('div');
+                valueDiv.className = 'param-value';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = item.value;
+                input.dataset.param = item.param;
+                valueDiv.appendChild(input);
+                
+                // Info button cell
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'param-info';
+                const infoBtn = document.createElement('button');
+                infoBtn.className = 'info-btn';
+                infoBtn.textContent = '?';
+                infoBtn.onclick = () => showInfoPopup(item);
+                infoDiv.appendChild(infoBtn);
+                
+                rowDiv.appendChild(nameDiv);
+                rowDiv.appendChild(valueDiv);
+                rowDiv.appendChild(infoDiv);
+                
+                grid.appendChild(rowDiv);
+            });
+        }
+
+        // Show info popup for a parameter - enhanced to fetch detailed information
+        function showInfoPopup(item) {
+            // Extract just the number from the parameter (e.g., from "$10" extract "10")
+            const paramNum = item.param.replace('$', '');
+
+            // Fetch detailed information about the parameter
+            fetch(`/api/param_info/${paramNum}`)
+            .then(response => response.json())
+            .then(data => {
+                let description = data.description || "No description available for this parameter.";
+                let options = data.options ? `\n\nOptions: ${data.options}` : "";
+                let currentValue = `\n\nCurrent value: ${item.value}`;
+
+                // Create a modal popup instead of alert for better UX
+                createModalPopup(item.param, description + currentValue + options, data);
+            })
+            .catch(error => {
+                // Fallback to simple alert if detailed info is not available
+                console.error('Error fetching parameter info:', error);
+                alert(`Parameter: ${item.param}\nValue: ${item.value}\n\nRaw command: ${item.raw}\n\nDetailed info not available`);
+            });
+        }
+
+        // Create a modal popup for parameter information
+        function createModalPopup(param, description, details) {
+            // Remove existing modal if present
+            const existingModal = document.getElementById('paramModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.id = 'paramModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0,0,0,0.5);
+                z-index: 1000;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            `;
+
+            // Create modal content
+            const content = document.createElement('div');
+            content.style.cssText = `
+                background-color: white;
+                padding: 20px;
+                border-radius: 8px;
+                max-width: 600px;
+                max-height: 80vh;
+                overflow-y: auto;
+                position: relative;
+            `;
+
+            // Add title
+            const title = document.createElement('h3');
+            title.textContent = `Parameter: ${param}`;
+            title.style.marginTop = '0';
+
+            // Add description
+            const desc = document.createElement('p');
+            desc.textContent = description;
+
+            // Add close button
+            const closeButton = document.createElement('button');
+            closeButton.textContent = 'Close';
+            closeButton.style.cssText = `
+                background-color: #f44336;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                float: right;
+            `;
+            closeButton.onclick = () => modal.remove();
+
+            // Add elements to content
+            content.appendChild(closeButton);
+            content.appendChild(title);
+            content.appendChild(desc);
+
+            // Add to modal
+            modal.appendChild(content);
+
+            // Add to body
+            document.body.appendChild(modal);
+        }
+
+        // Update all settings
+        function updateAllSettings() {
+            const inputs = document.querySelectorAll('#settingsGrid input');
+            let updates = 0;
+            
+            inputs.forEach(input => {
+                const param = input.dataset.param;
+                const value = input.value.trim();
+                
+                // Send update command for each setting
+                const command = `${param}=${value}`;
+                
+                fetch('/api/raw_command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ command: command })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updates++;
+                        if (updates === inputs.length) {
+                            showStatus(`Updated ${updates} settings successfully`);
+                        }
+                    } else {
+                        showStatus(`Error updating ${param}: ${data.error}`, true);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating setting:', error);
+                    showStatus(`Error updating ${param}: ${error.message}`, true);
+                });
+            });
+            
+            if (inputs.length === 0) {
+                showStatus('No settings to update', true);
+            }
+        }
+
+        // Reset to defaults
+        function resetToDefaults() {
+            if (confirm('This will reset all GRBL settings to defaults. Are you sure?')) {
+                fetch('/api/raw_command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ command: '$RST=*' })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showStatus('Settings reset to defaults. Machine will restart.');
+                        loadSettings(); // Reload settings after reset
+                    } else {
+                        showStatus(`Error resetting settings: ${data.error}`, true);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error resetting settings:', error);
+                    showStatus(`Error resetting settings: ${error.message}`, true);
+                });
+            }
+        }
+
+        // Save to EEPROM
+        function saveToEEPROM() {
+            if (confirm('Save current settings to EEPROM? This will make settings persistent after power cycle.')) {
+                fetch('/api/raw_command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ command: '$$' }) // Just requesting current settings to confirm
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Actually save by re-sending all settings
+                        updateAllSettings();
+                        showStatus('Settings saved to EEPROM');
+                    } else {
+                        showStatus(`Error saving settings: ${data.error}`, true);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving settings:', error);
+                    showStatus(`Error saving settings: ${error.message}`, true);
+                });
+            }
+        }
+
+        // Initial load when page loads
+        window.onload = function() {
+            loadSettings();
+        };
+    </script>
+</body>
+</html>
