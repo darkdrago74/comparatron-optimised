@@ -77,11 +77,21 @@ This command automatically detects the Comparatron installation directory and ru
 ## Installation
 
 ### Prerequisites:
-- git (install with `sudo apt install git` or equivalent)
+- git (install with appropriate command for your system):
+  - **Debian/Ubuntu**: `sudo apt install git`
+  - **Fedora/RHEL**: `sudo dnf install git`
 
 The unified installer will automatically handle all other requirements (Python 3, pip, dependencies).
 
 ### Main Installation (single comprehensive script):
+
+First, clone the repository:
+```bash
+git clone https://github.com/darkdrago74/comparatron-optimised.git
+cd comparatron-optimised
+```
+
+Then run the unified installation script:
 ```bash
 chmod +x install.sh
 ./install.sh
