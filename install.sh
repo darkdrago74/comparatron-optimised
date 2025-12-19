@@ -257,11 +257,11 @@ install_debian() {
     # Install system dependencies - avoid conflicting packages initially
     echo -e "${YELLOW}Installing system dependencies...${NC}"
     if [ -n "$SUDO" ]; then
-        # Try installing the full set first
-        if ! $SUDO apt install -y python3 python3-pip python3-dev build-essential libatlas-base-dev libhdf5-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev; then
+        # Try installing the full set first (without development packages for faster/lighter installation)
+        if ! $SUDO apt install -y python3 python3-pip build-essential libatlas-base-dev libhdf5-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev; then
             echo -e "${YELLOW}Standard installation failed, trying minimal set...${NC}"
             # Try minimal set needed for basic functionality
-            if ! $SUDO apt install -y python3 python3-pip python3-dev build-essential libatlas-base-dev libjpeg-dev libpng-dev libtiff5-dev; then
+            if ! $SUDO apt install -y python3 python3-pip build-essential libatlas-base-dev libjpeg-dev libpng-dev libtiff5-dev; then
                 echo -e "${RED}Critical system dependencies installation failed${NC}"
                 exit 1
             fi
@@ -304,7 +304,7 @@ install_fedora() {
     echo -e "${YELLOW}Installing system dependencies...${NC}"
     if [ -n "$SUDO" ]; then
         $SUDO dnf group install -y "C Development Tools and Libraries" 2>/dev/null || true
-        $SUDO dnf install -y python3 python3-pip python3-devel atlas-devel hdf5-devel gstreamer1-devel ffmpeg-devel libv4l-devel xvidcore-devel x264-devel libjpeg-turbo-devel libpng-devel libtiff-devel 2>/dev/null || true
+        $SUDO dnf install -y python3 python3-pip atlas-devel hdf5-devel gstreamer1-devel ffmpeg-devel libv4l-devel xvidcore-devel x264-devel libjpeg-turbo-devel libpng-devel libtiff-devel 2>/dev/null || true
     fi
 }
 

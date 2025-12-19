@@ -107,14 +107,6 @@ The unified installer:
 - Can automatically uninstall and reinstall if issues are detected
 - Cleans up partial installations if installation fails
 
-## Legacy Installation (for reference only)
-
-For historical purposes, the original installation script is available in the dependencies directory:
-```bash
-cd dependencies
-chmod +x install_dependencies.sh
-./install_dependencies.sh
-```
 
 ## Operating System Support
 
