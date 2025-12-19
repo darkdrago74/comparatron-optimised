@@ -1,0 +1,20 @@
+[Unit]
+Description=Comparatron Flask GUI
+After=network.target multi-user.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=roro
+Group=roro
+WorkingDirectory=/home/roro/Documents/comparatron-optimised
+Environment=PATH=/usr/bin
+Environment=PYTHONPATH=/home/roro/Documents/comparatron-optimised
+ExecStart=/usr/bin/python3 /home/roro/Documents/comparatron-optimised/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -60,6 +60,72 @@ python main.py
 
 **Manual access**: Open a web browser to `http://localhost:5001`.
 
+## Easy Launch Command
+
+After installation, you can launch Comparatron from any directory using the `comparatron` command:
+
+```bash
+# Launch Comparatron from any location
+comparatron
+
+# Force start even if already running
+comparatron force
+```
+
+This command automatically detects the Comparatron installation directory and runs the main application.
+
+## Installation
+
+### Prerequisites:
+- git (install with `sudo apt install git` or equivalent)
+
+The unified installer will automatically handle all other requirements (Python 3, pip, dependencies).
+
+### Main Installation (single comprehensive script):
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+The unified installer:
+- Checks for existing installations and can fix issues
+- Automatically installs Python 3 and pip if needed
+- Installs all Python dependencies and system requirements
+- Sets up systemd service for auto-start (optional)
+- Creates system-wide `comparatron` command
+- Runs comprehensive functionality tests (replaces comparatron_test.sh functionality)
+- Can automatically uninstall and reinstall if issues are detected
+- Cleans up partial installations if installation fails
+
+## Legacy Installation (for reference only)
+
+For historical purposes, the original installation script is available in the dependencies directory:
+```bash
+cd dependencies
+chmod +x install_dependencies.sh
+./install_dependencies.sh
+```
+
+## Operating System Support
+
+The installation script automatically detects your system and configures appropriately:
+
+- **Linux (Ubuntu/Fedora/etc.)**: Full installation with all dependencies
+- **Raspberry Pi**: Optimized installation with Pi-specific optimizations and optional boot service
+- **Other systems**: Fallback installation using available package managers
+
+### OS Detection and Installation Details
+
+The unified installer automatically:
+- Detects your operating system and package manager
+- Installs appropriate system dependencies (using apt, dnf, etc.)
+- Uses optimized package sources (like piwheels for Raspberry Pi)
+- Configures system-specific settings (GPIO access on Raspberry Pi)
+- Sets up user groups for hardware access (serial, camera, GPIO)
+- Creates system-wide command (`comparatron`)
+- Sets up systemd service for auto-start (optional)
+- Runs comprehensive functionality tests
+
 ## Key Features
 
 - **Web Interface**: Accessible from any device on your network
@@ -98,7 +164,63 @@ python main.py
   ```
   Then log out and log back in to apply the permissions.
 
+## Auto-start Configuration
 
+Comparatron supports auto-start on boot via systemd service with multiple control options:
+
+### Web Interface Control
+The web interface includes a button to toggle auto-start functionality directly from the GUI.
+
+### Command Line Control
+```bash
+# Enable auto-start
+python3 main.py ON
+
+# Disable auto-start
+python3 main.py OFF
+```
+
+### Systemctl Control
+```bash
+# Enable auto-start on boot
+sudo systemctl enable comparatron.service
+
+# Disable auto-start on boot
+sudo systemctl disable comparatron.service
+
+# Start the service now
+sudo systemctl start comparatron.service
+
+# Check service status
+systemctl is-active comparatron.service
+systemctl is-enabled comparatron.service
+```
+
+## Easy Launch Command
+
+For convenience, you can launch Comparatron from any directory using the `comparatron` command:
+
+```bash
+# Launch Comparatron from any location
+comparatron
+
+# Force start even if already running
+comparatron force
+```
+
+This command automatically detects the Comparatron installation directory and runs the main application.
+
+## Command Extensions
+
+Additional commands were added to enhance the functionality:
+
+### GRBL Parameter/Settings Access
+- **View all settings**: Send `$$` command via the raw command interface
+- **View all parameters**: Send `$#` command via the raw command interface
+
+### Camera Functionality
+- **Refresh camera detection**: Web interface button to detect newly connected cameras without restarting
+- **Multiple backend support**: Improved compatibility with various camera types
 
 ## Project Structure
 
@@ -110,14 +232,16 @@ comparatron-optimised/
 ├── serial_comm.py         # Serial communication with CNC
 ├── machine_control.py     # Machine control commands
 ├── dxf_handler.py         # DXF file processing
-├── validate_optimization.py # Installation validation
-├── DOCUMENTATION.md       # Complete project documentation
+├── DOCUMENTATION.md       # Detailed project documentation
+├── comparatron_env/       # Virtual environment (created by installer)
 ├── dependencies/          # Installation scripts and dependencies
 │   ├── install_dependencies.sh  # Unified installer (Linux & Raspberry Pi)
 │   ├── uninstall.sh             # Uninstaller
-│   └── requirements.txt         # Python package requirements (exact versions)
+│   ├── requirements.txt         # Python package requirements (exact versions)
+│   └── requirements-simple.txt  # Alternative requirements (compatible versions)
 └── laserweb4/            # Optional LaserWeb4 integration
 ```
+
 
 ## Contributing
 

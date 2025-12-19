@@ -19,13 +19,13 @@ class SerialCommunicator:
     
     def __init__(self):
         self.ser = None
-        self.baudrate = 115200
+        self.baudrate = 115200  # Standard GRBL baud rate
         self.bytesize = 8
         self.parity = 'N'
         self.stopbits = 1
-        self.timeout = None
-        self.xonxoff = 1
-        self.rtscts = 0
+        self.timeout = 2  # Set a reasonable timeout to avoid hanging
+        self.xonxoff = 0  # Disable software flow control to reduce potential issues
+        self.rtscts = 0   # Disable hardware flow control
     
     def connect_to_com(self, com_port):
         """
@@ -124,12 +124,13 @@ class SerialCommunicator:
             logging.info("No open serial connection to close")
             print("No open serial connection to close")
     
-    def send_command(self, command_string):
+    def send_command(self, command_string, multi_line_response=False):
         """
-        Send a command string to the machine
+        Send a command string to the machine with improved reliability
 
         Args:
             command_string (str or bytes): Command to send
+            multi_line_response (bool): Whether to expect multiple line responses
 
         Returns:
             str: Response from the machine, or None if error
@@ -142,31 +143,117 @@ class SerialCommunicator:
         try:
             # Convert to bytes if it's a string
             if isinstance(command_string, str):
-                command_bytes = command_string.encode()
+                command_string = command_string.strip()  # Clean up the command
+                command_bytes = command_string.encode() + b'\n'  # Add newline for proper GRBL command termination
             else:
                 command_bytes = command_string
 
             logging.debug(f"Sending command: {command_string}")
+
+            # Clear input buffer to start fresh (get rid of any backlog from previous operations)
+            if self.ser.in_waiting > 0:
+                self.ser.reset_input_buffer()
+                time.sleep(0.05)  # Brief pause after clearing buffer
 
             # Send the command
             bytes_written = self.ser.write(command_bytes)
             self.ser.flush()  # Ensure data is sent
 
             # Read response with timeout
-            response = None
             start_time = time.time()
-            timeout = 5.0  # Increased timeout to 5 seconds to handle unresponsive devices
+            timeout = 5.0  # Default timeout
 
-            while (time.time() - start_time) < timeout:
-                if self.ser.in_waiting > 0:
-                    response = self.ser.readline()
-                    response_str = response.decode('utf-8', errors='ignore').strip()
-                    logging.debug(f"Received response: {response_str}")
-                    print(f"Response: {response_str}")
-                    return response_str
-                time.sleep(0.05)  # Slightly increased delay to reduce CPU usage
+            # Use a longer timeout for settings and parameters commands that return multiple lines
+            if command_string.strip() in ['$$', '$#']:
+                timeout = 8.0 if command_string.strip() == '$$' else 5.0
+                multi_line_response = True  # Force multi-line for these commands
 
-            # If we timed out, it might be due to power issues
+            if multi_line_response:
+                # Collect multiple responses for commands that return multiple lines
+                responses = []
+                # Give GRBL a moment to start responding
+                time.sleep(0.1 if command_string.strip() in ['$$', '$#'] else 0.05)
+
+                while (time.time() - start_time) < timeout:
+                    if self.ser.in_waiting > 0:
+                        response = self.ser.readline()
+                        response_str = response.decode('utf-8', errors='ignore').strip()
+                        if response_str:
+                            responses.append(response_str)
+                            logging.debug(f"Received response: {response_str}")
+                            print(f"Response: {response_str}")
+
+                            # Check if it's the final 'ok' response for multi-line commands
+                            # For $$ and $# commands, GRBL ends with 'ok'
+                            if (command_string.strip() in ['$$', '$#'] and
+                                response_str.startswith('ok')):
+                                break
+                    else:
+                        # Small delay to prevent excessive CPU usage
+                        time.sleep(0.02)
+
+                        # For multi-line responses, if we've received some data and no more is coming,
+                        # we might be done (but we wait for the 'ok' response for $$ and $#)
+                        if command_string.strip() not in ['$$', '$#'] and responses:
+                            # For other multi-line responses, if no more data is arriving, we might be done
+                            if (time.time() - start_time) > 1.5:  # Wait a bit to ensure all responses have arrived
+                                break
+
+                # Return combined responses if any received
+                if responses:
+                    full_response = '\n'.join(responses)
+                    return full_response
+            else:
+                # For single-line responses - implement more robust response reading
+                response_buffer = []
+                response_str = ""
+
+                while (time.time() - start_time) < timeout:
+                    if self.ser.in_waiting > 0:
+                        # Read one byte at a time to avoid corruption
+                        byte = self.ser.read(1)
+                        char = byte.decode('utf-8', errors='ignore')
+
+                        if char == '\n' or char == '\r':  # End of line
+                            if response_str.strip():  # Only add non-empty responses
+                                response_buffer.append(response_str.strip())
+                                logging.debug(f"Received response: {response_str.strip()}")
+                                print(f"Response: {response_str.strip()}")
+                                response_str = ""
+                        else:
+                            response_str += char  # Accumulate character
+
+                        # Check if we have a complete response (for single commands)
+                        if response_buffer and response_buffer[-1] != 'ok':  # Keep reading until 'ok' or timeout
+                            time.sleep(0.01)  # Small delay to allow more data to arrive
+                        elif response_buffer and response_buffer[-1] == 'ok':  # Got the 'ok' response
+                            break
+                    else:
+                        time.sleep(0.02)  # Brief pause to reduce CPU usage
+
+                # If we have accumulated a response string that hasn't been captured due to no newline
+                if response_str.strip():
+                    response_buffer.append(response_str.strip())
+
+                # Return the response
+                if response_buffer:
+                    # Return the last meaningful response (not 'ok' if we need a specific response)
+                    # For commands like ?, we want the status, not the 'ok' confirmation
+                    for resp in reversed(response_buffer):
+                        if resp.lower() != 'ok' or len(response_buffer) == 1:
+                            return resp
+
+                    # If all we got was 'ok', return that
+                    if 'ok' in response_buffer:
+                        return 'ok'
+                    # If we got something else, return the last non-'ok' item
+                    for resp in reversed(response_buffer):
+                        if resp.lower() != 'ok':
+                            return resp
+                    # If only 'ok' exists, return 'ok'
+                    return 'ok'
+
+            # If we timed out without getting a proper response
             logging.warning(f"Timeout waiting for response to command: {command_string}")
             print(f"Timeout waiting for response to command: {command_string}")
             print("Possible issues:")
@@ -286,6 +373,26 @@ class SerialCommunicator:
             print("Unlock command sent but no confirmation received")
         return result
 
+    def reset_alarm_state(self):
+        """Send multiple commands to reset alarm state - for limit alarms like ALARM:2"""
+        print("Resetting alarm state...")
+
+        # First try the regular unlock
+        self.send_command(b'$X\r')
+
+        # Then try sending a soft reset command (Ctrl+X equivalent)
+        self.send_command(b'\x18')  # This is Ctrl+X (soft reset)
+        time.sleep(0.5)  # Wait for reset to complete
+
+        # Try unlock again after reset
+        self.send_command(b'$X\r')
+
+        # Check status
+        status = self.send_command(b'?\r')
+        print(f"Status after alarm reset attempt: {status}")
+
+        return status
+
     def set_feed(self, feed_rate=2000):
         """Set feed rate (default 2000)"""
         command = f'F{feed_rate}\r'
@@ -388,40 +495,134 @@ class SerialCommunicator:
 
         print(f"Sending raw command: {raw_command}")
         return self.send_command(raw_command)
-        self.ser.write(b'?\r')
-        
-        # Read response (with timeout)
-        start_time = time.time()
-        while self.ser.in_waiting == 0 and (time.time() - start_time) < 2.0:
-            time.sleep(0.01)
-        
-        if self.ser.in_waiting > 0:
-            response = self.ser.readline()
-            response_str = response.decode('utf-8').strip()
-            
-            if response_str.startswith('<Idle|WPos'):
-                # Parse position info
-                pos_str = response_str.removeprefix('<Idle|WPos:')
-                coords_str = pos_str.split('|')[0]  # Get position part before other info
-                coords = coords_str.split(',')
-                
-                if len(coords) >= 3:
-                    try:
-                        x, y, z = float(coords[0]), float(coords[1]), float(coords[2])
-                        return {
-                            'status': 'idle',
-                            'x': x,
-                            'y': y, 
-                            'z': z,
-                            'raw_response': response_str
-                        }
-                    except ValueError:
-                        print(f"Error parsing coordinates: {coords}")
-                        return {'raw_response': response_str}
-            
-            return {'raw_response': response_str}
-        
-        return None
+
+    def get_settings_list(self):
+        """
+        Get the list of all GRBL settings using the $$ command
+
+        Returns:
+            str: Response from the machine with all settings, or None if error
+        """
+        if not self.ser or not self.ser.is_open:
+            logging.warning("No active serial connection")
+            print("No active serial connection")
+            return None
+
+        print("Sending $$ command to get all GRBL settings...")
+        try:
+            # Send the settings list command '$$'
+            command_bytes = b'$$\r'
+            logging.debug(f"Sending settings list command: {command_bytes}")
+
+            # Send the command
+            bytes_written = self.ser.write(command_bytes)
+            self.ser.flush()  # Ensure data is sent
+
+            # Small delay for the command to be processed by GRBL
+            time.sleep(0.1)
+
+            # Read response (GRBL settings command typically returns multiple lines)
+            responses = []
+            start_time = time.time()
+            timeout = 8.0  # Increased timeout significantly to allow time for all settings to be returned
+            received_ok = False  # Flag to track if we've received the 'ok' response
+
+            # For $$ command, we need to wait for all responses including the final 'ok'
+            # The responses might come in quickly or slowly depending on the GRBL version and machine
+            while (time.time() - start_time) < timeout and not received_ok:
+                if self.ser.in_waiting > 0:
+                    response = self.ser.readline()
+                    response_str = response.decode('utf-8', errors='ignore').strip()
+                    if response_str:
+                        responses.append(response_str)
+                        logging.debug(f"Received settings response: {response_str}")
+                        print(f"Settings response: {response_str}")
+
+                        # GRBL ends the settings list with an 'ok' response
+                        if response_str.startswith('ok'):
+                            received_ok = True
+                else:
+                    # Brief pause to prevent excessive CPU usage when no data is available
+                    time.sleep(0.03)
+
+            # If we have collected responses, return the complete list
+            if responses:
+                full_response = '\n'.join(responses)
+                logging.info(f"Settings retrieved successfully ({len(responses)} lines)")
+                return full_response
+            else:
+                logging.warning("No response received for settings list command")
+                print("No response received for settings list command")
+                return None
+
+        except Exception as e:
+            logging.error(f"Error getting settings list: {e}")
+            print(f"Error getting settings list: {e}")
+            return None
+
+    def get_parameters_list(self):
+        """
+        Get the list of all GRBL parameters using the $# command
+
+        Returns:
+            str: Response from the machine with all parameters, or None if error
+        """
+        if not self.ser or not self.ser.is_open:
+            logging.warning("No active serial connection")
+            print("No active serial connection")
+            return None
+
+        print("Sending $# command to get all GRBL parameters...")
+        try:
+            # Send the parameters list command '$#'
+            command_bytes = b'$#\r'
+            logging.debug(f"Sending parameters list command: {command_bytes}")
+
+            # Send the command
+            bytes_written = self.ser.write(command_bytes)
+            self.ser.flush()  # Ensure data is sent
+
+            # Small delay for the command to be processed by GRBL
+            time.sleep(0.1)
+
+            # Read response (GRBL parameters command typically returns multiple lines)
+            responses = []
+            start_time = time.time()
+            timeout = 5.0  # Increased timeout to allow time for all parameters to be returned
+            received_ok = False  # Flag to track if we've received the 'ok' response
+
+            # For $# command, we need to wait for all responses including the final 'ok'
+            # The responses might come in quickly or slowly depending on the GRBL version and machine
+            while (time.time() - start_time) < timeout and not received_ok:
+                if self.ser.in_waiting > 0:
+                    response = self.ser.readline()
+                    response_str = response.decode('utf-8', errors='ignore').strip()
+                    if response_str:
+                        responses.append(response_str)
+                        logging.debug(f"Received parameters response: {response_str}")
+                        print(f"Parameters response: {response_str}")
+
+                        # GRBL ends the parameters list with an 'ok' response
+                        if response_str.startswith('ok'):
+                            received_ok = True
+                else:
+                    # Brief pause to prevent excessive CPU usage when no data is available
+                    time.sleep(0.03)
+
+            # If we have collected responses, return the complete list
+            if responses:
+                full_response = '\n'.join(responses)
+                logging.info(f"Parameters retrieved successfully ({len(responses)} lines)")
+                return full_response
+            else:
+                logging.warning("No response received for parameters list command")
+                print("No response received for parameters list command")
+                return None
+
+        except Exception as e:
+            logging.error(f"Error getting parameters list: {e}")
+            print(f"Error getting parameters list: {e}")
+            return None
 
 
 if __name__ == "__main__":

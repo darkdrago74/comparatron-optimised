@@ -17,10 +17,10 @@ def find_available_cameras(max_cameras=20):
     Find only cameras that are both physically present AND accessible.
     This uses a more efficient approach focusing on speed and reducing errors.
     Only returns cameras that can be opened AND provide valid frames.
-    
+
     Args:
         max_cameras (int): Maximum number of camera indices to check
-    
+
     Returns:
         list: List of available camera indices that are both present AND accessible
     """
@@ -28,54 +28,117 @@ def find_available_cameras(max_cameras=20):
     import threading
     import time
     available_cameras = []
-    
+
     # First, check which video devices exist at the system level
     existing_video_devices = []
     for i in range(max_cameras):
         if os.path.exists(f"/dev/video{i}"):
             existing_video_devices.append(i)
-    
+
     logging.info(f"Found {len(existing_video_devices)} video devices: {existing_video_devices}")
-    
+
     # Test each device efficiently with timeout to avoid hanging on problematic cameras
     for i in existing_video_devices:
-        try:
-            # Try to open camera with timeout approach
-            # Use threading to ensure we don't hang on slow/non-responding cameras
-            cap = cv.VideoCapture(i, cv.CAP_V4L2)
-            
-            if cap.isOpened():
-                cap.set(cv.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffering for faster response
-                # Try to read a frame to verify it's working
-                ret, frame = cap.read()
-                if ret and frame is not None and frame.size > 0:
-                    available_cameras.append(i)
-                    logging.info(f"Confirmed working camera at index {i}")
+        # Try multiple backends to increase success rate
+        backends = [cv.CAP_V4L2, cv.CAP_GSTREAMER, cv.CAP_FFMPEG]  # V4L2 first as it's most common for USB cameras
+        backends.append(None)  # Finally try default backend
+
+        for backend in backends:
+            try:
+                if backend is not None:
+                    cap = cv.VideoCapture(i, backend)
+                else:
+                    cap = cv.VideoCapture(i)  # Default backend
+
+                if cap.isOpened():
+                    # Set optimal properties for faster initialization
+                    cap.set(cv.CAP_PROP_BUFFERSIZE, 1)
+                    cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
+                    cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
+                    cap.set(cv.CAP_PROP_FPS, 30)
+
+                    # Wait briefly for camera to initialize
+                    time.sleep(0.1)
+
+                    # Try to read a frame to verify it's working
+                    ret, frame = cap.read()
+                    if ret and frame is not None and frame.size > 0:
+                        # Double check by trying to read another frame
+                        ret2, frame2 = cap.read()
+                        if ret2 and frame2 is not None and frame2.size > 0:
+                            if i not in available_cameras:  # Avoid duplicates
+                                available_cameras.append(i)
+                                logging.info(f"Confirmed working camera at index {i} with backend {backend}")
+                            break  # Exit the backend loop if successful
                     cap.release()
-                    continue  # Skip trying default backend if V4L2 worked
-            
-            # If V4L2 didn't work, try with default backend
-            try:
-                cap.release()  # Release the V4L2 attempt
-            except:
-                pass
-            cap = cv.VideoCapture(i)
-            if cap.isOpened():
-                cap.set(cv.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffering for faster response
-                ret, frame = cap.read()
-                if ret and frame is not None and frame.size > 0:
-                    available_cameras.append(i)
-                    logging.info(f"Confirmed working camera at index {i} with default backend")
-                cap.release()
-        except Exception as e:
-            logging.debug(f"Error testing camera {i}: {e}")
-            try:
-                cap.release()
-            except:
-                pass
+
+            except Exception as e:
+                logging.debug(f"Error testing camera {i} with backend {backend}: {e}")
+                try:
+                    cap.release()
+                except:
+                    pass
 
     logging.info(f"Final working cameras found: {len(available_cameras)} - {available_cameras}")
     return available_cameras
+
+
+def refresh_camera_detection(max_cameras=20):
+    """
+    Refresh camera detection by re-scanning for newly connected cameras.
+    This function forces a re-detection of cameras which might help with
+    hot-plugged cameras that weren't detected originally.
+
+    Args:
+        max_cameras (int): Maximum number of camera indices to check
+
+    Returns:
+        list: List of newly detected camera indices
+    """
+    import os
+    import time
+    import cv2 as cv
+
+    working_cameras = []
+
+    # Check for video devices that exist
+    for i in range(max_cameras):
+        if os.path.exists(f"/dev/video{i}"):
+            # Test if this camera is actually working
+            backends = [cv.CAP_V4L2, cv.CAP_GSTREAMER, cv.CAP_FFMPEG, None]  # Default as last resort
+
+            for backend in backends:
+                try:
+                    if backend is not None:
+                        cap = cv.VideoCapture(i, backend)
+                    else:
+                        cap = cv.VideoCapture(i)  # Default backend
+
+                    if cap.isOpened():
+                        # Set optimal properties for faster initialization
+                        cap.set(cv.CAP_PROP_BUFFERSIZE, 1)
+                        time.sleep(0.1)  # Brief wait for initialization
+
+                        # Try to read a frame to verify it's working
+                        ret, frame = cap.read()
+                        if ret and frame is not None and frame.size > 0:
+                            # Double check with another read
+                            ret2, frame2 = cap.read()
+                            if ret2 and frame2 is not None and frame2.size > 0:
+                                if i not in working_cameras:  # Avoid duplicates
+                                    working_cameras.append(i)
+                                cap.release()
+                                break  # Break if successful
+                        cap.release()
+
+                except Exception:
+                    try:
+                        cap.release()
+                    except:
+                        pass
+
+    logging.info(f"Newly detected cameras after refresh: {working_cameras}")
+    return working_cameras
 
 
 def test_camera_connection(camera_index):

@@ -1,136 +1,252 @@
 # Comparatron - Complete Project Documentation
 
+## Table of Contents
+1. [Overview](#overview)
+2. [Architecture](#architecture)
+3. [Installation Process](#installation-process)
+4. [System Configuration](#system-configuration)
+5. [Hardware Integration](#hardware-integration)
+6. [Software Modules](#software-modules)
+7. [Command Extensions](#command-extensions)
+8. [Troubleshooting](#troubleshooting)
+9. [Optimizations](#optimizations)
+10. [Contributing](#contributing)
+
 ## Overview
-Comparatron is an advanced digital optical comparator that combines high-resolution camera capture, precision CNC control via Arduino/GRBL, and a web-based interface accessible from any device.
+
+Comparatron is an advanced digital optical comparator that combines:
+- High-resolution camera capture for visual inspection
+- Precision CNC control via Arduino/GRBL interface
+- Web-based interface accessible from any networked device
+- DXF export for CAD integration
+- Real-time coordinate measurement and recording
+
+The project integrates with LaserWeb4 for additional CNC control capabilities with g-code visualization and advanced motion control.
+
+## Architecture
+
+The system consists of multiple interconnected modules:
+
+### Core Components
+- **Flask GUI**: Web interface providing access from any device
+- **Camera Manager**: Handles camera detection, initialization, and video streaming
+- **Serial Communicator**: Manages communication with GRBL-based CNC controllers
+- **Machine Controller**: Translates high-level commands to GRBL commands
+- **DXF Handler**: Processes and exports measurement points to CAD format
+
+### Web Interface
+- Built with Flask for cross-platform web access
+- Accessible at http://localhost:5001
+- Real-time camera feed display
+- CNC control with jog commands
+- Position tracking and point recording
+- DXF export functionality
 
 ## Installation Process
 
-### Unified Installation Script
-The unified installation script (`install_dependencies.sh`) automatically detects your system type and performs the appropriate installation:
-
-- **Linux Desktop/Server (Fedora, Ubuntu, etc.)**: Installs system dependencies and Python packages directly to system Python
-- **Raspberry Pi**: Installs system dependencies, Python packages, and offers to set up auto-start service
-
-### Module Versions
-The installation uses exact package versions from `requirements.txt`:
-```
-blinker==1.9.0
-click==8.3.1
-ezdxf==1.4.3
-Flask==3.1.2
-fonttools==4.61.1
-itsdangerous==2.2.0
-Jinja2==3.1.6
-MarkupSafe==3.0.3
-numpy==2.2.6
-opencv-python==4.12.0.88
-pillow==12.0.0
-pyparsing==3.2.5
-pyserial==3.5
-typing_extensions==4.15.0
-Werkzeug==3.1.4
-```
-
-## System Requirements
-
-### Hardware Requirements
-- Computer with USB ports for Arduino/GRBL CNC controller
-- Main power supply (12V/24V) for GRBL shield motors/drivers (separate from USB power)
-- Compatible camera (USB webcam, industrial camera, etc.)
-
-### Software Requirements
+### Prerequisites
 - Python 3.8+
 - Git
-- For Fedora: `sudo dnf install python3 python3-pip python3-devel git`
-- For Raspberry Pi: `sudo apt install python3 python3-pip python3-dev git`
+- System packages for OpenCV and camera support
 
-### System Permissions
-- **Serial Port Access**: After installation, you must be added to the dialout group for serial communication with Arduino/GRBL
-- **Camera Access**: If cameras are not detected, you may need to add your user to the video group
+### Quick Installation
+1. Clone the repository
+2. Run `dependencies/install_dependencies.sh`
+3. Log out and back in (to apply group memberships)
 
-## Installation Validation
+### System-wide Installation
+The installation script performs:
+- System dependency installation (OpenCV, camera drivers, etc.)
+- Python package installation via pip
+- User group additions (video and dialout for camera/serial access)
+- Optional systemd service for Raspberry Pi auto-start
+- Validation of all required components
 
-The `validate_optimization.py` script performs comprehensive validation:
+## System Configuration
 
-1. **System Installation Check**: Verifies all required packages are available in system Python
-2. **Module Import Tests**: Tests importing all required modules (cv2, numpy, flask, PIL, serial, ezdxf)
-3. **Functional Tests**: Tests camera, serial, machine control, and DXF functionality
-4. **Script Validation**: Confirms installation and uninstall scripts exist and are executable
+### Auto-start Service
+For systems using systemd (most Linux distributions including Raspberry Pi):
 
-## Raspberry Pi Specifics
+- **Enable auto-start**: `sudo systemctl enable comparatron.service`
+- **Disable auto-start**: `sudo systemctl disable comparatron.service`
+- **Start service**: `sudo systemctl start comparatron.service`
+- **Check status**: `systemctl is-active comparatron.service`
+- **View logs**: `sudo journalctl -u comparatron -f`
 
-### Auto-Start Service
-On Raspberry Pi systems, the installation script offers to enable an auto-start service that launches Comparatron on boot. This service runs via systemd and is accessible at `http://<your-pi-ip-address>:5001`.
+### User Groups
+The installation adds the user to important groups:
+- **video**: For camera access (required for camera functionality)
+- **dialout**: For serial communication (required for CNC/GRBL control)
 
-### Raspberry Pi OS (Bookworm) Optimizations
-- Uses piwheels.org for faster package installation
-- Optimizes for ARMv7 architecture
-- Sets up proper GPIO access if available
+## Hardware Integration
 
-## Key Features
+### Camera Support
+- Automatic detection of connected cameras
+- Multiple camera support with selection dropdown
+- Real-time preview with crosshair target
+- Optimized for USB webcams and industrial cameras
+- Supports various resolutions and frame rates
 
-- **Web Interface**: Accessible from any device on your network
-- **Camera Support**: Multiple camera detection and preview
-- **CNC Control**: Direct control of GRBL-based CNC machines
-- **Serial Communication**: Robust error handling with power state detection
-- **DXF Export**: Point measurements exported to CAD format
-- **Cross-platform**: Works on Fedora, Raspberry Pi, and other Linux systems
-
-### Web Interface
-The main interface is Flask-based, accessible at `http://localhost:5001`
-
-### Machine Control
-- CNC movement control via GRBL/Arduino
-- Jog distance and feed rate control
-- Position reporting and status monitoring
-
-### Camera Management
-- Automatic camera detection
-- Real-time preview
-- Calibration support
+### CNC Control (GRBL/Arduino)
+- Direct serial communication with Arduino/GRBL
+- Standard baud rates (115200) for compatibility
+- Robust error handling with power state detection
+- Jog controls with adjustable distances
+- Home, unlock, and other machine functions
 
 ### Serial Communication
-- Robust error handling
-- Power state detection
+- Automatic detection of available COM ports
+- Robust connection handling with retry logic
+- Power state detection to differentiate communication errors from power issues
 - Command queuing and response management
+
+## Software Modules
+
+### main.py
+Primary entry point with:
+- Virtual environment detection and setup
+- Auto-start service activation/deactivation
+- System-wide command detection and handling
+
+### gui_flask.py
+Flask web interface with:
+- Camera feed streaming
+- CNC control interface
+- Real-time coordinate display
+- Point recording and visualization
+- API endpoints for all functionality
+
+### camera_manager.py
+Camera handling with:
+- Multiple camera detection algorithm
+- Camera initialization and streaming
+- Backend compatibility optimization
+- Refresh functionality for newly connected cameras
+
+### serial_comm.py
+Serial communication with:
+- Port detection and connection management
+- Command transmission and response handling
+- Power state detection algorithms
+- GRBL-specific command implementations
+
+### machine_control.py
+CNC control commands with:
+- Jog movements for X, Y, Z axes
+- Feed rate management
+- Position reporting
+- GRBL command abstraction
+
+### dxf_handler.py
+CAD integration with:
+- Point storage and management
+- DXF file generation
+- Export functionality
+- Coordinate system handling
+
+## Command Extensions
+
+### GRBL Parameter/Settings Access
+Two new commands have been added to access GRBL configuration:
+
+**$$ Command**: Lists all GRBL settings
+- Access via raw command interface: `$$`
+- Returns all configurable parameters with current values
+- Useful for debugging and configuration verification
+
+**$# Command**: Lists all GRBL parameters
+- Access via raw command interface: `$#`
+- Returns current work coordinate offsets, probing results, etc.
+- Essential for verifying machine state
+
+### Camera Refresh Functionality
+New camera detection algorithm includes:
+- `refresh_camera_detection()` function to detect newly connected cameras
+- Web interface button to trigger refresh without app restart
+- Multi-backend approach (V4L2, GStreamer, FFmpeg) for better compatibility
+- Fast detection with timeout handling for unresponsive cameras
+
+### Easy Launch Command
+The `comparatron` command provides:
+- System-wide availability after installation
+- Automatic installation directory detection
+- Conflict prevention when already running
+- Direct launch from any location
 
 ## Troubleshooting
 
-### Service Management (Raspberry Pi)
-- Check service status: `sudo systemctl status comparatron`
-- Start service: `sudo systemctl start comparatron`
-- Stop service: `sudo systemctl stop comparatron`
-- Enable auto-start: `sudo systemctl enable comparatron`
-- Disable auto-start: `sudo systemctl disable comparatron`
-
 ### Common Issues
-- **Camera not detected**: Check video group membership with `groups $USER | grep video`
-- **Serial port access denied**: Check dialout group membership with `groups $USER | grep dialout`
-- **Web interface not accessible**: Verify firewall settings allow port 5001
 
-## Project Structure
-```
-comparatron-optimised/
-├── main.py                 # Main application entry point
-├── gui_flask.py           # Web interface
-├── camera_manager.py      # Camera handling
-├── serial_comm.py         # Serial communication with CNC
-├── machine_control.py     # Machine control commands
-├── dxf_handler.py         # DXF file processing
-├── validate_optimization.py # Installation validation
-├── DOCUMENTATION.md       # Complete project documentation
-├── dependencies/          # Installation scripts and dependencies
-│   ├── install_dependencies.sh  # Unified installer (Linux & Raspberry Pi)
-│   ├── uninstall.sh             # Uninstaller
-│   └── requirements.txt         # Python package requirements (exact versions)
-└── laserweb4/            # Optional LaserWeb4 integration
-```
+#### Camera Not Detected
+1. Check if camera is physically connected: `ls -la /dev/video*`
+2. Verify user is in video group: `groups $USER | grep video`
+3. Add to video group: `sudo usermod -a -G video $USER`
+4. Log out and log back in
+5. Run the refresh camera function in the web interface
+
+#### Serial Communication Issues
+1. Verify Arduino/GRBL is connected and powered
+2. Check if port is available: `ls -la /dev/tty{USB,ACM,S}*`
+3. Confirm user is in dialout group: `groups $USER | grep dialout`
+4. Add to dialout group: `sudo usermod -a -G dialout $USER`
+5. Log out and log back in
+6. Try different baud rates in the interface
+
+#### Web Interface Not Accessible
+1. Check if application is running: `ps aux | grep python`
+2. Verify port 5001 is available: `netstat -tuln | grep 5001`
+3. Check firewall settings if accessing remotely
+4. Ensure Python dependencies are installed
+
+### System Service Issues
+1. Check service status: `systemctl is-active comparatron.service`
+2. Check service logs: `sudo journalctl -u comparatron.service -f`
+3. Verify user permissions for hardware access
+4. Check installation completed successfully
+
+## Optimizations
+
+### Performance Improvements
+- Camera frame rate optimization (15-30 FPS based on system)
+- Efficient video streaming using multipart responses
+- Hardware acceleration for image processing
+- Optimized serial communication timeouts
+
+### Cross-platform Compatibility
+- Automatic platform detection
+- System-specific optimization paths
+- Compatible with Fedora, Raspberry Pi, and other Linux systems
+- Consistent functionality across platforms
+
+### Memory and Resource Management
+- Efficient image processing with NumPy arrays
+- Proper cleanup of camera and serial resources
+- Optimized buffer management for video streaming
+- Thread-safe concurrent operations
 
 ## Contributing
+
+### Development Process
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+3. Make your changes in accordance with existing coding patterns
+4. Test functionality thoroughly
+5. Submit a pull request with clear changes described
+
+### Coding Standards
+- Follow existing code style and structure
+- Maintain compatibility with Python 3.8+
+- Use descriptive function and variable names
+- Include meaningful comments and docstrings
 
 ## Support
-For issues or questions, please open an issue on the GitHub repository.
+
+For issues or questions:
+- Check troubleshooting section first
+- Verify system requirements and permissions
+- Test on a known working platform if available
+- Create an issue on the GitHub repository with detailed error information
+
+## License
+
+See the LICENSE file for licensing information.

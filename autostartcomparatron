@@ -1,0 +1,107 @@
+#!/bin/bash
+# Comparatron Auto-Start Manager
+# A simple command to enable/disable Comparatron auto-start on boot
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 ON|OFF|ENABLE|DISABLE"
+    echo "  ON/ENABLE  - Enable Comparatron to start automatically on boot"
+    echo "  OFF/DISABLE - Disable Comparatron from starting automatically on boot"
+    echo "  STATUS     - Check current auto-start status"
+    exit 1
+}
+
+# Check arguments
+if [ $# -ne 1 ]; then
+    show_usage
+fi
+
+ACTION=$(echo "$1" | tr '[:lower:]' '[:upper:]')
+
+# Determine the project directory (assuming it's in Documents/comparatron-optimised)
+PROJECT_DIR="$HOME/Documents/comparatron-optimised"
+
+if [ ! -d "$PROJECT_DIR" ]; then
+    echo -e "${RED}Error: Comparatron project directory not found at $PROJECT_DIR${NC}"
+    echo -e "${YELLOW}Please check that Comparatron is installed in the expected location.${NC}"
+    exit 1
+fi
+
+case "$ACTION" in
+    "ON"|"ENABLE")
+        echo -e "${YELLOW}Enabling Comparatron auto-start on boot...${NC}"
+        
+        # First ensure the service file exists
+        if [ ! -f "/etc/systemd/system/comparatron.service" ]; then
+            echo -e "${RED}Error: Comparatron service file not found.${NC}"
+            echo -e "${YELLOW}Please run the installation script first:${NC}"
+            echo -e "${YELLOW}cd $PROJECT_DIR/dependencies && ./install_dependencies.sh${NC}"
+            exit 1
+        fi
+        
+        # Enable and start the service
+        if command -v sudo &> /dev/null; then
+            sudo systemctl enable comparatron.service
+            sudo systemctl start comparatron.service
+        else
+            systemctl enable comparatron.service
+            systemctl start comparatron.service
+        fi
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✓ Comparatron auto-start enabled successfully.${NC}"
+            echo -e "${GREEN}Comparatron will start automatically on boot.${NC}"
+        else
+            echo -e "${RED}✗ Failed to enable Comparatron auto-start.${NC}"
+            exit 1
+        fi
+        ;;
+    
+    "OFF"|"DISABLE")
+        echo -e "${YELLOW}Disabling Comparatron auto-start on boot...${NC}"
+        
+        # Stop and disable the service
+        if command -v sudo &> /dev/null; then
+            sudo systemctl stop comparatron.service 2>/dev/null || true
+            sudo systemctl disable comparatron.service
+        else
+            systemctl stop comparatron.service 2>/dev/null || true
+            systemctl disable comparatron.service
+        fi
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✓ Comparatron auto-start disabled successfully.${NC}"
+            echo -e "${GREEN}Comparatron will NOT start automatically on boot.${NC}"
+        else
+            echo -e "${RED}✗ Failed to disable Comparatron auto-start.${NC}"
+            exit 1
+        fi
+        ;;
+    
+    "STATUS")
+        if systemctl is-enabled comparatron.service &>/dev/null; then
+            echo -e "${GREEN}Comparatron auto-start is currently: ENABLED${NC}"
+            if systemctl is-active comparatron.service &>/dev/null; then
+                echo -e "${GREEN}Comparatron service is currently: RUNNING${NC}"
+            else
+                echo -e "${YELLOW}Comparatron service is currently: STOPPED${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Comparatron auto-start is currently: DISABLED${NC}"
+        fi
+        ;;
+    
+    *)
+        echo -e "${RED}Invalid argument: $1${NC}"
+        show_usage
+        ;;
+esac
+
+echo -e "${GREEN}Operation completed successfully.${NC}"
