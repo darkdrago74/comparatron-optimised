@@ -56,20 +56,20 @@ echo -e "${BLUE}=== Comparatron Complete Installation ===${NC}"
 # Check if already installed
 check_existing_installation() {
     echo -e "${YELLOW}Checking for existing installation...${NC}"
-    
+
     EXISTS=0
     ISSUES=()
-    
+
     if [ -f "/etc/systemd/system/comparatron.service" ]; then
         echo -e "${YELLOW}  Found existing systemd service${NC}"
         EXISTS=1
     fi
-    
+
     if command -v comparatron &> /dev/null; then
         echo -e "${YELLOW}  Found existing 'comparatron' command${NC}"
         EXISTS=1
     fi
-    
+
     # Check for required Python packages
     MISSING_PKGS=()
     for pkg in flask numpy cv2 PIL pyserial ezdxf; do
@@ -77,14 +77,97 @@ check_existing_installation() {
             MISSING_PKGS+=("$pkg")
         fi
     done
-    
+
     if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
         echo -e "${YELLOW}  Missing Python packages: ${MISSING_PKGS[*]}${NC}"
         ISSUES+=("missing packages")
+
+        # Ask user if they want to install the missing packages
+        read -p "Would you like to install the missing packages? (Y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo -e "${YELLOW}Installing missing Python packages...${NC}"
+
+            # Get the project root directory to find requirements.txt
+            PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            REQUIREMENTS_FILE="$PROJECT_ROOT/dependencies/requirements.txt"
+
+            # Check if the main requirements.txt exists, otherwise use requirements-simple.txt
+            if [ ! -f "$REQUIREMENTS_FILE" ]; then
+                REQUIREMENTS_FILE="$PROJECT_ROOT/dependencies/requirements-simple.txt"
+                if [ ! -f "$REQUIREMENTS_FILE" ]; then
+                    echo -e "${RED}Error: No requirements file found (neither requirements.txt nor requirements-simple.txt)${NC}"
+                    echo -e "${YELLOW}Skipping package installation.${NC}"
+                else
+                    echo -e "${YELLOW}Using requirements-simple.txt${NC}"
+                fi
+            else
+                echo -e "${YELLOW}Using requirements.txt${NC}"
+            fi
+
+            if [ -f "$REQUIREMENTS_FILE" ]; then
+                # Install packages using the system Python, with specific versions from requirements
+                if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
+                    # For RPi use piwheels specifically to speed up installation and get compatible versions
+                    if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary -r "$REQUIREMENTS_FILE" 2>&1 | grep -q "externally-managed-environment"; then
+                        echo -e "${YELLOW}Installing from piwheels with --break-system-packages${NC}"
+                        python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary -r "$REQUIREMENTS_FILE" || {
+                            echo -e "${YELLOW}Installing from standard PyPI...${NC}"
+                            python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" || {
+                                echo -e "${RED}Error: Failed to install Python packages. Please check logs for details.${NC}"
+                            }
+                        }
+                    fi
+                else
+                    # For other systems, install with --break-system-packages if needed
+                    if command -v apt &> /dev/null; then
+                        # Debian/Ubuntu systems typically require --break-system-packages
+                        if python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" 2>&1 | grep -q "externally-managed-environment"; then
+                            echo -e "${YELLOW}Installing with --break-system-packages${NC}"
+                            python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" || {
+                                echo -e "${RED}Error: Failed to install Python packages. Please check logs for details.${NC}"
+                            }
+                        fi
+                    else
+                        # Other systems might not require --break-system-packages
+                        if python3 -m pip install --prefer-binary -r "$REQUIREMENTS_FILE" 2>&1 | grep -q "externally-managed-environment"; then
+                            echo -e "${YELLOW}Installing with --break-system-packages for PEP 668 compliance${NC}"
+                            python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" || {
+                                echo -e "${RED}Error: Failed to install Python packages. Please check logs for details.${NC}"
+                                exit 1
+                            }
+                        else
+                            python3 -m pip install --prefer-binary -r "$REQUIREMENTS_FILE" || {
+                                echo -e "${RED}Error: Failed to install Python packages. Please check logs for details.${NC}"
+                                exit 1
+                            }
+                        fi
+                    fi
+                fi
+
+                # Re-check packages to see if they were installed successfully
+                STILL_MISSING=()
+                for pkg in "${MISSING_PKGS[@]}"; do
+                    if ! python3 -c "import $pkg" 2>/dev/null; then
+                        STILL_MISSING+=("$pkg")
+                    fi
+                done
+
+                if [ ${#STILL_MISSING[@]} -eq 0 ]; then
+                    echo -e "${GREEN}✓ All missing packages installed successfully${NC}"
+                    ISSUES=("${ISSUES[@]/missing packages}")  # Remove missing packages from issues
+                    unset MISSING_PKGS
+                else
+                    echo -e "${RED}✗ Some packages still missing: ${STILL_MISSING[*]}${NC}"
+                fi
+            else
+                echo -e "${RED}Requirements file not found, cannot install missing packages.${NC}"
+            fi
+        fi
     else
         echo -e "${GREEN}  ✓ All required Python packages are available${NC}"
     fi
-    
+
     # Check if user is in required groups
     if ! groups $USER 2>/dev/null | grep -q "\bdialout\b"; then
         echo -e "${YELLOW}  User not in dialout group (serial access)${NC}"
@@ -92,14 +175,14 @@ check_existing_installation() {
     else
         echo -e "${GREEN}  ✓ User is in dialout group${NC}"
     fi
-    
+
     if ! groups $USER 2>/dev/null | grep -q "\bvideo\b"; then
         echo -e "${YELLOW}  User not in video group (camera access)${NC}"
         ISSUES+=("missing video group")
     else
         echo -e "${GREEN}  ✓ User is in video group${NC}"
     fi
-    
+
     if [ $EXISTS -eq 1 ]; then
         if [ ${#ISSUES[@]} -gt 0 ]; then
             echo -e "${YELLOW}Existing installation found but has issues: ${ISSUES[*]}${NC}"
@@ -129,7 +212,7 @@ check_existing_installation() {
             fi
         fi
     fi
-    
+
     return 1  # Continue with fresh installation
 }
 
