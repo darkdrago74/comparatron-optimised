@@ -106,91 +106,112 @@ check_existing_installation() {
             fi
 
             if [ -f "$REQUIREMENTS_FILE" ]; then
-                echo -e "${YELLOW}Installing from requirements file: $REQUIREMENTS_FILE${NC}"
+                echo -e "${YELLOW}Installing specific missing packages from requirements file: $REQUIREMENTS_FILE${NC}"
 
                 # Create timestamped log file
                 LOG_FILE="/tmp/comparatron_install_$(date +%Y%m%d_%H%M%S).log"
                 echo "Installation log started at $(date)" >> "$LOG_FILE"
-                echo "Installing packages from: $REQUIREMENTS_FILE" >> "$LOG_FILE"
+                echo "Installing specific missing packages from: $REQUIREMENTS_FILE" >> "$LOG_FILE"
 
-                # Install packages using the system Python, with specific versions from requirements
-                if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
-                    # For RPi use piwheels specifically to speed up installation and get compatible versions
-                    echo -e "${YELLOW}Using piwheels.org for optimized RPi package installation...${NC}"
-                    echo "Using piwheels.org for optimized RPi package installation..." >> "$LOG_FILE"
+                # Install packages individually to handle issues more gracefully
+                INSTALLED_COUNT=0
+                FAILED_COUNT=0
+                SUCCESS=true
 
-                    if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary -r "$REQUIREMENTS_FILE" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
-                        echo -e "${YELLOW}Installing from piwheels with --break-system-packages${NC}"
-                        if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary -r "$REQUIREMENTS_FILE" >> "$LOG_FILE" 2>&1; then
-                            echo -e "${GREEN}✓ Success: Packages installed from piwheels${NC}"
-                            echo "Success: Packages installed from piwheels" >> "$LOG_FILE"
-                        else
-                            echo -e "${YELLOW}Installing from standard PyPI...${NC}"
-                            echo "Installing from standard PyPI..." >> "$LOG_FILE"
-                            if python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" >> "$LOG_FILE" 2>&1; then
-                                echo -e "${GREEN}✓ Success: Packages installed from PyPI${NC}"
-                                echo "Success: Packages installed from PyPI" >> "$LOG_FILE"
-                            else
-                                echo -e "${RED}✗ Error: Failed to install Python packages. See log: $LOG_FILE${NC}"
-                                echo "Error: Failed to install Python packages" >> "$LOG_FILE"
-                            fi
-                        fi
-                    else
-                        echo -e "${GREEN}✓ Success: Packages installed from piwheels${NC}"
-                        echo "Success: Packages installed from piwheels" >> "$LOG_FILE"
+                # Read the requirements file and install missing packages one by one
+                while IFS= read -r req_line; do
+                    # Skip empty lines and comments
+                    if [[ -z "$req_line" || "$req_line" =~ ^[[:space:]]*# || "$req_line" =~ ^[[:space:]]*$ ]]; then
+                        continue
                     fi
-                else
-                    # For other systems, install with --break-system-packages if needed
-                    echo -e "${YELLOW}Installing packages for non-Raspberry Pi system...${NC}"
-                    echo "Installing packages for non-Raspberry Pi system..." >> "$LOG_FILE"
 
-                    if command -v apt &> /dev/null; then
-                        # Debian/Ubuntu systems typically require --break-system-packages
-                        echo -e "${YELLOW}Detected Debian-based system, using --break-system-packages...${NC}"
-                        echo "Detected Debian-based system, using --break-system-packages..." >> "$LOG_FILE"
+                    # Extract package name (before version specifier)
+                    PACKAGE_NAME=$(echo "$req_line" | cut -d'=' -f1 | cut -d'>' -f1 | cut -d'<' -f1 | cut -d'!' -f1 | xargs)
 
-                        if python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
-                            echo -e "${YELLOW}Installing with --break-system-packages${NC}"
-                            if python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" >> "$LOG_FILE" 2>&1; then
-                                echo -e "${GREEN}✓ Success: Packages installed with --break-system-packages${NC}"
-                                echo "Success: Packages installed with --break-system-packages" >> "$LOG_FILE"
-                            else
-                                echo -e "${RED}✗ Error: Failed to install Python packages. See log: $LOG_FILE${NC}"
-                                echo "Error: Failed to install Python packages" >> "$LOG_FILE"
-                            fi
-                        else
-                            echo -e "${GREEN}✓ Success: Packages installed${NC}"
-                            echo "Success: Packages installed" >> "$LOG_FILE"
+                    # Check if this package was in the list of missing packages
+                    IS_MISSING=false
+                    for missing_pkg in "${MISSING_PKGS[@]}"; do
+                        if [ "$PACKAGE_NAME" = "$missing_pkg" ]; then
+                            IS_MISSING=true
+                            break
                         fi
-                    else
-                        # Other systems might not require --break-system-packages
-                        echo -e "${YELLOW}Installing packages for other system type...${NC}"
-                        echo "Installing packages for other system type..." >> "$LOG_FILE"
+                    done
 
-                        if python3 -m pip install --prefer-binary -r "$REQUIREMENTS_FILE" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
-                            echo -e "${YELLOW}Installing with --break-system-packages for PEP 668 compliance${NC}"
-                            if python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" >> "$LOG_FILE" 2>&1; then
-                                echo -e "${GREEN}✓ Success: Packages installed with --break-system-packages${NC}"
-                                echo "Success: Packages installed with --break-system-packages" >> "$LOG_FILE"
+                    if [ "$IS_MISSING" = true ]; then
+                        echo -e "${YELLOW}Installing $PACKAGE_NAME...${NC}"
+                        echo "Installing $PACKAGE_NAME..." >> "$LOG_FILE"
+
+                        # Install just this specific package with proper handling
+                        if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
+                            if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$req_line" 2>>"$LOG_FILE"; then
+                                echo -e "${GREEN}✓ $PACKAGE_NAME installed successfully${NC}"
+                                echo "$PACKAGE_NAME installed successfully" >> "$LOG_FILE"
+                                INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
                             else
-                                echo -e "${RED}✗ Error: Failed to install Python packages. See log: $LOG_FILE${NC}"
-                                echo "Error: Failed to install Python packages" >> "$LOG_FILE"
-                                exit 1
+                                echo -e "${RED}✗ Failed to install $PACKAGE_NAME${NC}"
+                                echo "Failed to install $PACKAGE_NAME" >> "$LOG_FILE"
+                                FAILED_COUNT=$((FAILED_COUNT + 1))
+                                SUCCESS=false
                             fi
                         else
-                            if python3 -m pip install --prefer-binary -r "$REQUIREMENTS_FILE" >> "$LOG_FILE" 2>&1; then
-                                echo -e "${GREEN}✓ Success: Packages installed${NC}"
-                                echo "Success: Packages installed" >> "$LOG_FILE"
+                            # For other systems
+                            if command -v apt-get &> /dev/null; then
+                                # Debian/Ubuntu systems
+                                if python3 -m pip install --break-system-packages --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                                    if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                                        echo "$req_line installed successfully" >> "$LOG_FILE"
+                                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                                    else
+                                        echo -e "${RED}✗ Failed to install $req_line${NC}"
+                                        echo "Failed to install $req_line" >> "$LOG_FILE"
+                                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                                        SUCCESS=false
+                                    fi
+                                else
+                                    if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                                        echo "$req_line installed successfully" >> "$LOG_FILE"
+                                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                                    else
+                                        echo -e "${RED}✗ Failed to install $req_line${NC}"
+                                        echo "Failed to install $req_line" >> "$LOG_FILE"
+                                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                                        SUCCESS=false
+                                    fi
+                                fi
                             else
-                                echo -e "${RED}✗ Error: Failed to install Python packages. See log: $LOG_FILE${NC}"
-                                echo "Error: Failed to install Python packages" >> "$LOG_FILE"
-                                exit 1
+                                # Other systems
+                                if python3 -m pip install --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                                    if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                                        echo "$req_line installed successfully" >> "$LOG_FILE"
+                                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                                    else
+                                        echo -e "${RED}✗ Failed to install $req_line${NC}"
+                                        echo "Failed to install $req_line" >> "$LOG_FILE"
+                                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                                        SUCCESS=false
+                                    fi
+                                else
+                                    if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                                        echo "$req_line installed successfully" >> "$LOG_FILE"
+                                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                                    else
+                                        echo -e "${RED}✗ Failed to install $req_line${NC}"
+                                        echo "Failed to install $req_line" >> "$LOG_FILE"
+                                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                                        SUCCESS=false
+                                    fi
+                                fi
                             fi
                         fi
                     fi
-                fi
+                done < "$REQUIREMENTS_FILE"
 
-                echo -e "${GREEN}Installation log saved to: $LOG_FILE${NC}"
+                echo -e "${GREEN}Package installation completed: $INSTALLED_COUNT installed, $FAILED_COUNT failed${NC}"
+                echo "Package installation completed: $INSTALLED_COUNT installed, $FAILED_COUNT failed" >> "$LOG_FILE"
 
                 # Re-check packages to see if they were installed successfully
                 STILL_MISSING=()
@@ -205,7 +226,9 @@ check_existing_installation() {
                     ISSUES=("${ISSUES[@]/missing packages}")  # Remove missing packages from issues
                     unset MISSING_PKGS
                 else
-                    echo -e "${RED}✗ Some packages still missing: ${STILL_MISSING[*]}${NC}"
+                    echo -e "${RED}✗ Some packages still missing after installation: ${STILL_MISSING[*]}${NC}"
+                    # Preserve the original issue but with more detail
+                    ISSUES+=("failed to install: ${STILL_MISSING[*]}")
                 fi
             else
                 echo -e "${RED}Requirements file not found, cannot install missing packages.${NC}"
@@ -434,7 +457,7 @@ install_fedora() {
     echo -e "${YELLOW}Installing system dependencies...${NC}"
     if [ -n "$SUDO" ]; then
         $SUDO dnf group install -y "C Development Tools and Libraries" 2>/dev/null || true
-        $SUDO dnf install -y python3 python3-pip atlas-devel hdf5-devel gstreamer1-devel ffmpeg-devel libv4l-devel xvidcore-devel x264-devel libjpeg-turbo-devel libpng-devel libtiff-devel 2>/dev/null || true
+        $SUDO dnf install -y python3 python3-pip python3-devel atlas-devel hdf5-devel gstreamer1-devel ffmpeg-devel libv4l-devel xvidcore-devel x264-devel libjpeg-turbo-devel libpng-devel libtiff-devel 2>/dev/null || true
     fi
 }
 
@@ -764,45 +787,129 @@ if [ ! -f "$REQUIREMENTS_FILE" ]; then
     exit 1
 fi
 
-# Install packages using the system Python, with specific versions from requirements
-if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
-    # For RPi use piwheels specifically to speed up installation and get compatible versions
-    if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary -r "$REQUIREMENTS_FILE" 2>&1 | grep -q "externally-managed-environment"; then
-        echo -e "${YELLOW}Installing from piwheels with --break-system-packages${NC}"
-        python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary -r "$REQUIREMENTS_FILE" || {
-            echo -e "${YELLOW}Installing from standard PyPI...${NC}"
-            python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" || {
-                echo -e "${RED}Error: Failed to install Python packages. Please check logs for details.${NC}"
-                exit 1
-            }
-        }
+# Install development packages required for building Python packages if needed
+if command -v apt-get &> /dev/null; then
+    # For Debian/Ubuntu systems, install development packages needed for building Python packages
+    echo -e "${YELLOW}Installing Python development headers and build tools...${NC}"
+    if command -v sudo &> /dev/null; then
+        sudo apt-get update
+        sudo apt-get install -y python3-dev build-essential pkg-config
+    else
+        # Try without sudo - might work in some contexts
+        apt-get install -y python3-dev build-essential pkg-config 2>/dev/null || true
     fi
-else
-    # For other systems, install with --break-system-packages if needed
-    if command -v apt &> /dev/null; then
-        # Debian/Ubuntu systems typically require --break-system-packages
-        if python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" 2>&1 | grep -q "externally-managed-environment"; then
-            echo -e "${YELLOW}Installing with --break-system-packages${NC}"
-            python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" || {
-                echo -e "${RED}Error: Failed to install Python packages. Please check logs for details.${NC}"
-                exit 1
-            }
+elif command -v dnf &> /dev/null; then
+    # For Fedora systems
+    echo -e "${YELLOW}Installing Python development headers and build tools...${NC}"
+    if command -v sudo &> /dev/null; then
+        sudo dnf install -y python3-devel gcc gcc-c++ make
+    else
+        dnf install -y python3-devel gcc gcc-c++ make 2>/dev/null || true
+    fi
+fi
+
+# Install Python packages from requirements.txt
+echo -e "${YELLOW}Installing required Python packages from requirements.txt (compatible versions)...${NC}"
+echo -e "${YELLOW}Requirements file path: $REQUIREMENTS_FILE${NC}"
+
+if [ ! -f "$REQUIREMENTS_FILE" ]; then
+    echo -e "${RED}Error: Requirements file not found at $REQUIREMENTS_FILE${NC}"
+    exit 1
+fi
+
+# Install/verify required Python packages from requirements file
+echo -e "${YELLOW}Installing/verifying required Python packages from requirements file...${NC}"
+echo -e "${YELLOW}Using requirements file: $REQUIREMENTS_FILE${NC}"
+
+if [ ! -f "$REQUIREMENTS_FILE" ]; then
+    echo -e "${RED}Error: Requirements file not found at $REQUIREMENTS_FILE${NC}"
+    exit 1
+fi
+
+# Check which packages are already installed and meet requirements
+echo -e "${YELLOW}Checking already installed packages...${NC}"
+
+# Read the requirements file and install packages individually
+INSTALLED_COUNT=0
+FAILED_COUNT=0
+TOTAL_COUNT=0
+
+while IFS= read -r req_line; do
+    # Skip empty lines and comments
+    if [[ -z "$req_line" || "$req_line" =~ ^[[:space:]]*# || "$req_line" =~ ^[[:space:]]*$ ]]; then
+        continue
+    fi
+
+    TOTAL_COUNT=$((TOTAL_COUNT + 1))
+
+    # Extract package name (before version specifier)
+    PACKAGE_NAME=$(echo "$req_line" | cut -d'=' -f1 | cut -d'>' -f1 | cut -d'<' -f1 | cut -d'!' -f1 | xargs)
+
+    # Check if package is already installed and meets requirements
+    if python3 -c "import $PACKAGE_NAME" 2>/dev/null; then
+        echo -e "${GREEN}✓ $PACKAGE_NAME is already installed${NC}"
+        continue
+    fi
+
+    echo -e "${YELLOW}Installing $PACKAGE_NAME...${NC}"
+
+    # Install just this specific package with proper handling
+    if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
+        if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$PACKAGE_NAME" 2>>"$LOG_FILE"; then
+            echo -e "${GREEN}✓ $PACKAGE_NAME installed successfully${NC}"
+            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+        else
+            echo -e "${RED}✗ Failed to install $PACKAGE_NAME${NC}"
+            FAILED_COUNT=$((FAILED_COUNT + 1))
         fi
     else
-        # Other systems might not require --break-system-packages
-        if python3 -m pip install --prefer-binary -r "$REQUIREMENTS_FILE" 2>&1 | grep -q "externally-managed-environment"; then
-            echo -e "${YELLOW}Installing with --break-system-packages for PEP 668 compliance${NC}"
-            python3 -m pip install --break-system-packages --prefer-binary -r "$REQUIREMENTS_FILE" || {
-                echo -e "${RED}Error: Failed to install Python packages. Please check logs for details.${NC}"
-                exit 1
-            }
+        # For other systems, use appropriate installation command
+        if command -v apt-get &> /dev/null; then
+            # Debian/Ubuntu systems
+            if python3 -m pip install --break-system-packages --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                    echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                else
+                    echo -e "${RED}✗ Failed to install $req_line${NC}"
+                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                fi
+            else
+                if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                    echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                else
+                    echo -e "${RED}✗ Failed to install $req_line${NC}"
+                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                fi
+            fi
         else
-            python3 -m pip install --prefer-binary -r "$REQUIREMENTS_FILE" || {
-                echo -e "${RED}Error: Failed to install Python packages. Please check logs for details.${NC}"
-                exit 1
-            }
+            # Other systems
+            if python3 -m pip install --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                    echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                else
+                    echo -e "${RED}✗ Failed to install $req_line${NC}"
+                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                fi
+            else
+                if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                    echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                else
+                    echo -e "${RED}✗ Failed to install $req_line${NC}"
+                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                fi
+            fi
         fi
     fi
+done < "$REQUIREMENTS_FILE"
+
+echo -e "${GREEN}Package installation completed: $INSTALLED_COUNT installed, $FAILED_COUNT failed, out of $TOTAL_COUNT total packages${NC}"
+
+if [ $FAILED_COUNT -gt 0 ]; then
+    echo -e "${YELLOW}Some packages failed to install, but continuing...${NC}"
 fi
 
 # Add user to necessary groups
