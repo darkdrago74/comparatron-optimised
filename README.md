@@ -29,9 +29,8 @@ The project also includes optional integration with LaserWeb4 for additional CNC
 
 2.  **Run the unified installation script:**
     ```bash
-    cd dependencies
-    chmod +x install_dependencies.sh
-    ./install_dependencies.sh
+    chmod +x install.sh
+    ./install.sh
     ```
     This script will automatically detect your system:
     *   **Linux (Fedora, Ubuntu, etc.)**: Install system dependencies and Python packages
@@ -48,6 +47,13 @@ cd dependencies
 chmod +x uninstall.sh
 ./uninstall.sh
 ```
+
+Alternatively, the main installation script can handle uninstallation:
+```bash
+chmod +x install.sh
+./install.sh
+```
+Then select the uninstallation option when prompted.
 
 ### Running the Application
 
@@ -101,7 +107,7 @@ The unified installer:
 - Checks for existing installations and can fix issues
 - Automatically installs Python 3 and pip if needed
 - Installs all Python dependencies and system requirements
-- Sets up systemd service for auto-start (optional)
+- Sets up systemd service for boot auto-start (optional)
 - Creates system-wide `comparatron` command
 - Runs comprehensive functionality tests (replaces comparatron_test.sh functionality)
 - Can automatically uninstall and reinstall if issues are detected
@@ -137,7 +143,32 @@ The unified installer automatically:
 - **DXF Export**: Point measurements exported to CAD format
 - **Cross-platform**: Works on Fedora, Raspberry Pi, and other Linux systems
 
-## System Requirements
+## Software Requirements
+
+### Prerequisites
+Before installation, ensure you have these software packages installed:
+
+**For Fedora/RHEL systems:**
+```bash
+sudo dnf install python3 python3-pip git
+```
+
+**For Debian/Ubuntu/Raspberry Pi systems:**
+```bash
+sudo apt update && sudo apt install python3 python3-pip git
+```
+
+**Required Python version:** Python 3.8 or higher (Python 3.10+ recommended)
+
+**System libraries (automatically installed by the script):**
+The installation script will automatically install additional system libraries as needed, including:
+- build-essential (compilation tools)
+- libatlas-base-dev (for optimized linear algebra)
+- libhdf5-dev (for data storage)
+- libgstreamer1.0-dev (for video processing)
+- libavcodec-dev, libavformat-dev, libswscale-dev (for video handling)
+- libv4l-dev, libxvidcore-dev, libx264-dev (for camera support)
+- libjpeg-dev, libpng-dev, libtiff5-dev (for image handling)
 
 ### Hardware Requirements
 - Computer with USB ports for Arduino/GRBL CNC controller
@@ -168,21 +199,34 @@ The unified installer automatically:
 
 ## Auto-start Configuration
 
-Comparatron supports auto-start on boot via systemd service with multiple control options:
+Comparatron offers two distinct ways to run automatically:
 
-### Web Interface Control
-The web interface includes a button to toggle auto-start functionality directly from the GUI.
-
-### Command Line Control
+### Command-line Auto-start
+This allows you to start Comparatron manually from the terminal using the `comparatron` command. This launches the application when you run the command, but it doesn't start automatically when the system boots:
 ```bash
-# Enable auto-start
+# Launch Comparatron from any directory
+comparatron
+
+# Force start even if already running
+comparatron force
+```
+
+### Boot Auto-start (systemd service)
+This allows Comparatron to start automatically when your system boots up via a systemd service. This is configured during installation and runs in the background without user intervention:
+
+#### Web Interface Control
+The web interface includes a button to toggle boot auto-start functionality directly from the GUI.
+
+#### Command Line Control
+```bash
+# Enable auto-start on boot
 python3 main.py ON
 
-# Disable auto-start
+# Disable auto-start on boot
 python3 main.py OFF
 ```
 
-### Systemctl Control
+#### Systemctl Control
 ```bash
 # Enable auto-start on boot
 sudo systemctl enable comparatron.service
@@ -190,13 +234,20 @@ sudo systemctl enable comparatron.service
 # Disable auto-start on boot
 sudo systemctl disable comparatron.service
 
-# Start the service now
+# Start the service now (without rebooting)
 sudo systemctl start comparatron.service
 
-# Check service status
+# Stop the service now (without affecting boot setting)
+sudo systemctl stop comparatron.service
+
+# Check if service is currently active
 systemctl is-active comparatron.service
+
+# Check if service is enabled for auto-start on boot
 systemctl is-enabled comparatron.service
 ```
+
+The difference is important: command-line auto-start refers to the easy launch command that works from any directory, while boot auto-start refers to the systemd service that starts the application automatically when the system boots.
 
 ## Easy Launch Command
 
@@ -211,6 +262,8 @@ comparatron force
 ```
 
 This command automatically detects the Comparatron installation directory and runs the main application.
+
+Note: This is the command-line auto-start functionality, which is distinct from the boot auto-start feature that starts Comparatron automatically when your system boots up.
 
 ## Command Extensions
 
@@ -236,10 +289,10 @@ comparatron-optimised/
 ├── dxf_handler.py         # DXF file processing
 ├── DOCUMENTATION.md       # Detailed project documentation
 ├── comparatron_env/       # Virtual environment (created by installer)
-├── dependencies/          # Installation scripts and dependencies
-│   ├── install_dependencies.sh  # Unified installer (Linux & Raspberry Pi)
-│   ├── uninstall.sh             # Uninstaller
-│   ├── requirements.txt         # Python package requirements (exact versions)
+├── install.sh             # Main unified installer (Linux & Raspberry Pi)
+├── dependencies/          # Additional scripts and dependencies
+│   ├── uninstall.sh       # Uninstaller
+│   ├── requirements.txt   # Python package requirements (exact versions)
 │   └── requirements-simple.txt  # Alternative requirements (compatible versions)
 └── laserweb4/            # Optional LaserWeb4 integration
 ```
