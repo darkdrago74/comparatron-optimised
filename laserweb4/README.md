@@ -11,32 +11,26 @@ LaserWeb4 is a web-based interface for controlling laser cutters and CNC machine
 - File import and conversion
 - Multiple controller support
 
-## Node.js Version Recommendation
-
-For optimal serial communication with Arduino/GRBL controllers, LaserWeb4 works best with **Node.js v18.x**. On systems with newer Node.js versions (v20+), native module compatibility issues may limit direct serial communication functionality.
-
-### Installing Node.js v18.x on Raspberry Pi:
-
-```bash
-curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt install -y nodejs
-```
-
 ## Installation
 
 To install LaserWeb4 on your Raspberry Pi:
 
 ```bash
-./install_laserweb4_rpi.sh
+./install_laserweb4.sh
 ```
 
 This will:
-- Install all required dependencies (Node.js, npm, git, etc.)
+- Automatically install Node.js v18.x with proper serial communication support
+- Install all required dependencies (npm, git, etc.)
 - Clone the LaserWeb4 repository
 - Install Node.js packages
 - Build the application
 - Set up auto-start service to run on boot
 - Add the current user to the dialout group for serial access
+
+## Node.js Version
+
+The installation script automatically installs **Node.js v18.x**, which is optimal for serial communication with Arduino/GRBL controllers. No manual Node.js installation is required.
 
 ## Accessing the Interface
 
