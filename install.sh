@@ -143,15 +143,32 @@ check_existing_installation() {
 
                         # Install just this specific package with proper handling
                         if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
-                            if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$req_line" 2>>"$LOG_FILE"; then
-                                echo -e "${GREEN}✓ $PACKAGE_NAME installed successfully${NC}"
-                                echo "$PACKAGE_NAME installed successfully" >> "$LOG_FILE"
-                                INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                            # Special handling for opencv-python-headless on Raspberry Pi - use regular opencv-python instead
+                            if [ "$PACKAGE_NAME" = "opencv-python-headless" ]; then
+                                echo -e "${YELLOW}Installing opencv-python (not headless) for Raspberry Pi...${NC}"
+                                echo "Installing opencv-python for Raspberry Pi..." >> "$LOG_FILE"
+                                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python 2>>"$LOG_FILE"; then
+                                    echo -e "${GREEN}✓ opencv-python installed successfully${NC}"
+                                    echo "opencv-python installed successfully" >> "$LOG_FILE"
+                                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                                else
+                                    echo -e "${RED}✗ Failed to install opencv-python${NC}"
+                                    echo "Failed to install opencv-python" >> "$LOG_FILE"
+                                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                                    SUCCESS=false
+                                fi
                             else
-                                echo -e "${RED}✗ Failed to install $PACKAGE_NAME${NC}"
-                                echo "Failed to install $PACKAGE_NAME" >> "$LOG_FILE"
-                                FAILED_COUNT=$((FAILED_COUNT + 1))
-                                SUCCESS=false
+                                # For other packages, install normally
+                                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$req_line" 2>>"$LOG_FILE"; then
+                                    echo -e "${GREEN}✓ $PACKAGE_NAME installed successfully${NC}"
+                                    echo "$PACKAGE_NAME installed successfully" >> "$LOG_FILE"
+                                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                                else
+                                    echo -e "${RED}✗ Failed to install $PACKAGE_NAME${NC}"
+                                    echo "Failed to install $PACKAGE_NAME" >> "$LOG_FILE"
+                                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                                    SUCCESS=false
+                                fi
                             fi
                         else
                             # For other systems
@@ -715,12 +732,8 @@ echo -e "${YELLOW}  6. Run comprehensive functionality test${NC}"
 echo
 
 # Check for existing installation first
-if check_existing_installation; then
-    # Continue with installation if reinstall was chosen
-    :
-else
-    echo -e "${YELLOW}Installation check completed. Exiting.${NC}"
-    exit 0
+if ! check_existing_installation; then
+    echo -e "${YELLOW}Installation check completed. Proceeding anyway to ensure all components are installed...${NC}"
 fi
 
 # Detect system
@@ -855,51 +868,151 @@ while IFS= read -r req_line; do
 
     # Install just this specific package with proper handling
     if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
-        if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$PACKAGE_NAME" 2>>"$LOG_FILE"; then
-            echo -e "${GREEN}✓ $PACKAGE_NAME installed successfully${NC}"
-            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+        # Special handling for opencv-python-headless on Raspberry Pi - use regular opencv-python instead
+        if [ "$PACKAGE_NAME" = "opencv-python-headless" ]; then
+            echo -e "${YELLOW}Installing opencv-python (not headless) for Raspberry Pi...${NC}"
+            if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python 2>>"$LOG_FILE"; then
+                echo -e "${GREEN}✓ opencv-python installed successfully${NC}"
+                INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+            else
+                echo -e "${RED}✗ Failed to install opencv-python${NC}"
+                FAILED_COUNT=$((FAILED_COUNT + 1))
+            fi
+        elif [ "$PACKAGE_NAME" = "Pillow" ]; then
+            # Special handling for Pillow on Raspberry Pi to ensure pre-compiled wheels
+            echo -e "${YELLOW}Installing Pillow with --only-binary for Raspberry Pi...${NC}"
+            if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --only-binary=all --prefer-binary "$req_line" 2>>"$LOG_FILE"; then
+                echo -e "${GREEN}✓ Pillow installed successfully${NC}"
+                INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+            else
+                echo -e "${RED}✗ Failed to install Pillow, trying without --only-binary...${NC}"
+                # Try without --only-binary if the strict binary requirement fails
+                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$req_line" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Pillow installed successfully (without --only-binary)${NC}"
+                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                else
+                    echo -e "${RED}✗ Failed to install Pillow${NC}"
+                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                fi
+            fi
         else
-            echo -e "${RED}✗ Failed to install $PACKAGE_NAME${NC}"
-            FAILED_COUNT=$((FAILED_COUNT + 1))
+            # For other packages, install normally
+            if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$PACKAGE_NAME" 2>>"$LOG_FILE"; then
+                echo -e "${GREEN}✓ $PACKAGE_NAME installed successfully${NC}"
+                INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+            else
+                echo -e "${RED}✗ Failed to install $PACKAGE_NAME${NC}"
+                FAILED_COUNT=$((FAILED_COUNT + 1))
+            fi
         fi
     else
         # For other systems, use appropriate installation command
         if command -v apt-get &> /dev/null; then
             # Debian/Ubuntu systems
-            if python3 -m pip install --break-system-packages --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
-                if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
-                    echo -e "${GREEN}✓ $req_line installed successfully${NC}"
-                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+            if [ "$PACKAGE_NAME" = "Pillow" ]; then
+                # Special handling for Pillow on Debian/Ubuntu systems to ensure pre-compiled wheels
+                echo -e "${YELLOW}Installing Pillow with --only-binary for compatibility...${NC}"
+                if python3 -m pip install --break-system-packages --only-binary=all --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                    if python3 -m pip install --break-system-packages --only-binary=all --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                        echo -e "${GREEN}✓ Pillow installed successfully${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install Pillow with --only-binary, trying without...${NC}"
+                        if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                            echo -e "${GREEN}✓ Pillow installed successfully (without --only-binary)${NC}"
+                            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                        else
+                            echo -e "${RED}✗ Failed to install Pillow${NC}"
+                            FAILED_COUNT=$((FAILED_COUNT + 1))
+                        fi
+                    fi
                 else
-                    echo -e "${RED}✗ Failed to install $req_line${NC}"
-                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                    if python3 -m pip install --only-binary=all --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                        echo -e "${GREEN}✓ Pillow installed successfully${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install Pillow with --only-binary, trying without...${NC}"
+                        if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                            echo -e "${GREEN}✓ Pillow installed successfully (without --only-binary)${NC}"
+                            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                        else
+                            echo -e "${RED}✗ Failed to install Pillow${NC}"
+                            FAILED_COUNT=$((FAILED_COUNT + 1))
+                        fi
+                    fi
                 fi
             else
-                if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
-                    echo -e "${GREEN}✓ $req_line installed successfully${NC}"
-                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                # Regular package installation
+                if python3 -m pip install --break-system-packages --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                    if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install $req_line${NC}"
+                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                    fi
                 else
-                    echo -e "${RED}✗ Failed to install $req_line${NC}"
-                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                    if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install $req_line${NC}"
+                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                    fi
                 fi
             fi
         else
             # Other systems
-            if python3 -m pip install --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
-                if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
-                    echo -e "${GREEN}✓ $req_line installed successfully${NC}"
-                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+            if [ "$PACKAGE_NAME" = "Pillow" ]; then
+                # Special handling for Pillow on other systems to ensure pre-compiled wheels
+                echo -e "${YELLOW}Installing Pillow with --only-binary for compatibility...${NC}"
+                if python3 -m pip install --only-binary=all --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                    if python3 -m pip install --break-system-packages --only-binary=all --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                        echo -e "${GREEN}✓ Pillow installed successfully${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install Pillow with --only-binary, trying without...${NC}"
+                        if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                            echo -e "${GREEN}✓ Pillow installed successfully (without --only-binary)${NC}"
+                            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                        else
+                            echo -e "${RED}✗ Failed to install Pillow${NC}"
+                            FAILED_COUNT=$((FAILED_COUNT + 1))
+                        fi
+                    fi
                 else
-                    echo -e "${RED}✗ Failed to install $req_line${NC}"
-                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                    if python3 -m pip install --only-binary=all --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                        echo -e "${GREEN}✓ Pillow installed successfully${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install Pillow with --only-binary, trying without...${NC}"
+                        if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                            echo -e "${GREEN}✓ Pillow installed successfully (without --only-binary)${NC}"
+                            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                        else
+                            echo -e "${RED}✗ Failed to install Pillow${NC}"
+                            FAILED_COUNT=$((FAILED_COUNT + 1))
+                        fi
+                    fi
                 fi
             else
-                if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
-                    echo -e "${GREEN}✓ $req_line installed successfully${NC}"
-                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                # Regular package installation
+                if python3 -m pip install --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                    if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install $req_line${NC}"
+                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                    fi
                 else
-                    echo -e "${RED}✗ Failed to install $req_line${NC}"
-                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                    if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install $req_line${NC}"
+                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                    fi
                 fi
             fi
         fi
@@ -909,7 +1022,75 @@ done < "$REQUIREMENTS_FILE"
 echo -e "${GREEN}Package installation completed: $INSTALLED_COUNT installed, $FAILED_COUNT failed, out of $TOTAL_COUNT total packages${NC}"
 
 if [ $FAILED_COUNT -gt 0 ]; then
-    echo -e "${YELLOW}Some packages failed to install, but continuing...${NC}"
+    echo -e "${YELLOW}Some packages failed to install. Verifying availability of critical packages and performing recovery...${NC}"
+
+    # After installation, verify critical packages are available and install if missing
+    CRITICAL_PACKAGES=("PIL" "flask" "numpy" "cv2" "serial" "ezdxf")
+    for critical_pkg in "${CRITICAL_PACKAGES[@]}"; do
+        missing_pkg_check=""
+        if [ "$critical_pkg" = "PIL" ]; then
+            missing_pkg_check="from PIL import Image"
+        elif [ "$critical_pkg" = "serial" ]; then
+            missing_pkg_check="import serial"
+        elif [ "$critical_pkg" = "cv2" ]; then
+            missing_pkg_check="import cv2"
+        else
+            missing_pkg_check="import $critical_pkg"
+        fi
+
+        if ! python3 -c "$missing_pkg_check" 2>/dev/null; then
+            echo -e "${YELLOW}Critical package $critical_pkg not available, attempting recovery installation...${NC}"
+
+            # Determine the likely package name for installation
+            install_pkg_name="$critical_pkg"
+            if [ "$critical_pkg" = "PIL" ]; then
+                install_pkg_name="Pillow"
+            elif [ "$critical_pkg" = "cv2" ]; then
+                install_pkg_name="opencv-python-headless"
+            elif [ "$critical_pkg" = "serial" ]; then
+                install_pkg_name="pyserial"
+            elif [ "$critical_pkg" = "ezdxf" ]; then
+                install_pkg_name="ezdxf"
+            elif [ "$critical_pkg" = "flask" ]; then
+                install_pkg_name="Flask"
+            fi
+
+            # Install the missing critical package with various strategies
+            success=false
+
+            if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
+                # Try with piwheels optimized for Raspberry Pi first
+                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --only-binary=all --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Critical package $install_pkg_name installed for Raspberry Pi${NC}"
+                    success=true
+                elif python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Critical package $install_pkg_name installed for Raspberry Pi (without --only-binary)${NC}"
+                    success=true
+                elif python3 -m pip install --break-system-packages --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Critical package $install_pkg_name installed for Raspberry Pi (without piwheels)${NC}"
+                    success=true
+                fi
+            else
+                # For other systems
+                if python3 -m pip install --break-system-packages --only-binary=all --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Critical package $install_pkg_name installed${NC}"
+                    success=true
+                elif python3 -m pip install --break-system-packages --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Critical package $install_pkg_name installed (without --only-binary)${NC}"
+                    success=true
+                elif python3 -m pip install --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Critical package $install_pkg_name installed (without --break-system-packages)${NC}"
+                    success=true
+                fi
+            fi
+
+            if [ "$success" = false ]; then
+                echo -e "${RED}✗ Failed to install critical package $install_pkg_name after multiple attempts${NC}"
+            fi
+        else
+            echo -e "${GREEN}✓ Critical package $critical_pkg is available${NC}"
+        fi
+    done
 fi
 
 # Add user to necessary groups

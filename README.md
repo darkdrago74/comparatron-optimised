@@ -112,6 +112,7 @@ The unified installer:
 - Runs comprehensive functionality tests (replaces comparatron_test.sh functionality)
 - Can automatically uninstall and reinstall if issues are detected
 - Cleans up partial installations if installation fails
+- Automatically recovers from package installation issues (such as PIL/Pillow installation failures)
 
 
 ## Operating System Support
