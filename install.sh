@@ -448,7 +448,7 @@ install_debian() {
 
             # For Bookworm, some packages names might differ or be unavailable
             # Try to install the most commonly needed packages for RPi Bookworm
-            $SUDO apt install -y build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libqt5gui5 libqt5webkit5 libqt5test5 libilmbase25 libopenexr25 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libfontconfig1-dev libharfbuzz-dev libfreetype6-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+            $SUDO apt install -y build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libfontconfig1-dev libharfbuzz-dev libfreetype6-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
             # If the above fails due to package unavailability (common in RPi Bookworm), install minimal set
             if [ $? -ne 0 ]; then
@@ -639,14 +639,49 @@ run_functionality_test() {
     # Test 2: Check if web interface is accessible
     echo ""
     echo "2. Checking web interface accessibility..."
+
+    # First check if the service is running before testing accessibility
+    sleep 2  # Give the service a moment to fully start if it was just launched
+
+    # Try localhost first
+    LOCALHOST_ACCESSIBLE=false
     if curl -s http://127.0.0.1:5001 >/dev/null 2>&1; then
         echo "   ✓ Web interface accessible at http://127.0.0.1:5001"
+        LOCALHOST_ACCESSIBLE=true
     else
-        echo "   ✗ Web interface NOT accessible at http://127.0.0.1:5001"
+        echo "   ⚠ Web interface NOT accessible at http://127.0.0.1:5001"
         # Check if it's running on a different port
         if curl -s http://127.0.0.1:5000 >/dev/null 2>&1; then
             echo "   ⚠ Web interface accessible at http://127.0.0.1:5000 (default Flask port)"
+            LOCALHOST_ACCESSIBLE=true
         fi
+    fi
+
+    # Get the external IP address and test accessibility from it
+    EXTERNAL_IP=$(hostname -I | awk '{print $1}')  # Get first IP address
+    if [ -n "$EXTERNAL_IP" ] && [ "$EXTERNAL_IP" != "127.0.0.1" ]; then
+        if curl -s "http://$EXTERNAL_IP:5001" >/dev/null 2>&1; then
+            echo "   ✓ Web interface accessible at http://$EXTERNAL_IP:5001"
+        else
+            echo "   ⚠ Web interface NOT accessible at http://$EXTERNAL_IP:5001"
+        fi
+    fi
+
+    # Additional check: try to get the actual page content
+    if [ "$LOCALHOST_ACCESSIBLE" = true ]; then
+        PAGE_CONTENT=$(curl -s http://127.0.0.1:5001 | head -c 100)
+        if [[ "$PAGE_CONTENT" == *"<title>"* ]] || [[ "$PAGE_CONTENT" == *"Comparatron"* ]]; then
+            echo "   ✓ Web interface returning correct content"
+        else
+            echo "   ⚠ Web interface accessible but not returning expected Comparatron content"
+        fi
+    fi
+
+    # Store the accessibility state for later use in the summary
+    if [ "$LOCALHOST_ACCESSIBLE" = true ]; then
+        echo "true" > /tmp/comparatron_web_accessible
+    else
+        echo "false" > /tmp/comparatron_web_accessible
     fi
 
     # Test 3: Check auto-start command works
@@ -752,7 +787,19 @@ run_functionality_test() {
     echo "=== Functionality Test Summary ==="
     echo "✓ Auto-start functionality available via systemd service"
     echo "✓ Easy launch command 'comparatron' available"
-    echo "✓ Web interface accessible at http://localhost:5001"
+
+    # Show web interface accessibility status based on actual test
+    if [ -f "/tmp/comparatron_web_accessible" ]; then
+        WEB_STATUS=$(cat /tmp/comparatron_web_accessible)
+        if [ "$WEB_STATUS" = "true" ]; then
+            echo "✓ Web interface accessible at http://localhost:5001"
+        else
+            echo "✗ Web interface NOT accessible at http://localhost:5001 - please check service status"
+        fi
+    else
+        echo "⚠ Web interface accessibility test result not available"
+    fi
+
     echo "✓ Hardware access (serial port, camera) properly configured"
     echo "✓ Required Python packages available"
     echo "✓ API endpoints functional"
@@ -929,6 +976,12 @@ while IFS= read -r req_line; do
             fi
         elif [ "$PACKAGE_NAME" = "Pillow" ]; then
             # Special handling for Pillow on Raspberry Pi to ensure pre-compiled wheels
+            # First check if Pillow is already installed to avoid unnecessary installation attempts
+            if python3 -c "import PIL" 2>/dev/null; then
+                echo -e "${GREEN}✓ Pillow is already available${NC}"
+                continue  # Skip installation since it's already available
+            fi
+
             echo -e "${YELLOW}Installing Pillow with --only-binary for Raspberry Pi...${NC}"
             if [ "$RPI_VERSION" = "bookworm" ]; then
                 # For Bookworm, use more lenient approach with piwheels
@@ -1236,6 +1289,9 @@ if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
 fi
 echo -e "${GREEN}You can use the 'comparatron' command from any directory to launch the application.${NC}"
 echo -e "${YELLOW}IMPORTANT: You need to logout and login again for the group changes to take effect${NC}"
+
+# Clean up temporary files
+rm -f /tmp/comparatron_web_accessible
 
 # Exit with success code to prevent cleanup
 exit 0

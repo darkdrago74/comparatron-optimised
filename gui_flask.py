@@ -506,8 +506,8 @@ def main():
     """Main function to run the Flask GUI"""
     gui = ComparatronFlaskGUI()
     print("Starting Comparatron Flask GUI...")
-    print("Access the interface at: http://localhost:5001 or http://127.0.0.1:5001")
-    gui.run(host='127.0.0.1', port=5001, debug=False)
+    print("Access the interface at: http://localhost:5001 or http://[RPI_IP]:5001")
+    gui.run(host='0.0.0.0', port=5001, debug=False)
 
 
 if __name__ == "__main__":
