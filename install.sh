@@ -72,11 +72,15 @@ check_existing_installation() {
 
     # Check for required Python packages
     MISSING_PKGS=()
-    for pkg in flask numpy cv2 PIL pyserial ezdxf; do
+    for pkg in flask numpy cv2 PIL ezdxf; do
         if ! python3 -c "import $pkg" 2>/dev/null; then
             MISSING_PKGS+=("$pkg")
         fi
     done
+    # Special handling for pyserial since it's imported as 'serial'
+    if ! python3 -c "import serial" 2>/dev/null; then
+        MISSING_PKGS+=("pyserial")
+    fi
 
     if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
         echo -e "${YELLOW}  Missing Python packages: ${MISSING_PKGS[*]}${NC}"
@@ -322,9 +326,18 @@ detect_system() {
     if [[ "$OS" == *"Raspbian"* ]] || [[ "$OS" == *"Debian GNU/Linux"* ]] || [[ "$ID_LIKE" == *"debian"* ]]; then
         if grep -q "Raspberry\|raspberrypi\|rpi" /proc/cpuinfo 2>/dev/null ||
            [ -f "/opt/vc/bin/vcgencmd" ] ||
-           grep -q "Raspberry\|BCM" /proc/cpuinfo 2>/dev/null; then
+           grep -q "Raspberry\|BCM" /proc/cpuinfo 2>/dev/null ||
+           [ -d "/sys/class/gpio/gpio18" ] ||
+           [ -f "/boot/config.txt" ]; then
             DISTRO_TYPE="raspberry_pi"
-            RPI_VERSION="bookworm"
+            # Determine specific RPi OS version
+            if [[ "$OS" == *"12"* ]] || [[ "$VER" == *"12"* ]] || [[ "$OS" == *"Bookworm"* ]]; then
+                RPI_VERSION="bookworm"
+            elif [[ "$OS" == *"11"* ]] || [[ "$VER" == *"11"* ]] || [[ "$OS" == *"Bullseye"* ]]; then
+                RPI_VERSION="bullseye"
+            else
+                RPI_VERSION="bookworm"  # Default to bookworm for newer versions
+            fi
         else
             DISTRO_TYPE="debian"
         fi
@@ -424,23 +437,53 @@ install_debian() {
         $SUDO apt update -y
     fi
 
-    # Install system dependencies - avoid conflicting packages initially
-    echo -e "${YELLOW}Installing system dependencies...${NC}"
-    if [ -n "$SUDO" ]; then
-        # Try installing the full set first (without development packages for faster/lighter installation)
-        if ! $SUDO apt install -y python3 python3-pip build-essential libatlas-base-dev libhdf5-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev; then
-            echo -e "${YELLOW}Standard installation failed, trying minimal set...${NC}"
-            # Try minimal set needed for basic functionality
-            if ! $SUDO apt install -y python3 python3-pip build-essential libatlas-base-dev libjpeg-dev libpng-dev libtiff5-dev; then
-                echo -e "${RED}Critical system dependencies installation failed${NC}"
-                exit 1
+    # For Raspberry Pi specifically, install system dependencies with Bookworm compatibility
+    if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
+        echo -e "${YELLOW}Installing system dependencies for Raspberry Pi with Bookworm OS...${NC}"
+
+        # Install Raspberry Pi specific packages first
+        if [ -n "$SUDO" ]; then
+            # Install basic system dependencies for RPi
+            $SUDO apt install -y python3 python3-pip python3-dev
+
+            # For Bookworm, some packages names might differ or be unavailable
+            # Try to install the most commonly needed packages for RPi Bookworm
+            $SUDO apt install -y build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libqt5gui5 libqt5webkit5 libqt5test5 libilmbase25 libopenexr25 libilmbase-dev libopenexr-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libfontconfig1-dev libharfbuzz-dev libfreetype6-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+            # If the above fails due to package unavailability (common in RPi Bookworm), install minimal set
+            if [ $? -ne 0 ]; then
+                echo -e "${YELLOW}Some packages unavailable on RPi Bookworm, installing minimal set...${NC}"
+                $SUDO apt install -y python3 python3-dev python3-pip build-essential libatlas-base-dev libjpeg-dev libpng-dev libtiff5-dev python3-setuptools python3-wheel
             fi
         fi
+
+        # Enable camera interface on Raspberry Pi if possible
+        if [ -f "/boot/config.txt" ] && command -v sudo &> /dev/null; then
+            if ! grep -q "^camera_auto_detect=" /boot/config.txt; then
+                echo "camera_auto_detect=1" | sudo tee -a /boot/config.txt
+                echo -e "${GREEN}Camera interface enabled in /boot/config.txt${NC}"
+            fi
+        fi
+
     else
-        # Without sudo, check if the required python components exist
-        if ! command -v python3 &> /dev/null; then
-            echo -e "${RED}Error: python3 is not available and no sudo access${NC}"
-            exit 1
+        # For regular Debian systems
+        echo -e "${YELLOW}Installing system dependencies for Debian system...${NC}"
+        if [ -n "$SUDO" ]; then
+            # Try installing the full set first (without development packages for faster/lighter installation)
+            if ! $SUDO apt install -y python3 python3-pip build-essential libatlas-base-dev libhdf5-dev libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev; then
+                echo -e "${YELLOW}Standard installation failed, trying minimal set...${NC}"
+                # Try minimal set needed for basic functionality
+                if ! $SUDO apt install -y python3 python3-pip build-essential libatlas-base-dev libjpeg-dev libpng-dev libtiff5-dev; then
+                    echo -e "${RED}Critical system dependencies installation failed${NC}"
+                    exit 1
+                fi
+            fi
+        else
+            # Without sudo, check if the required python components exist
+            if ! command -v python3 &> /dev/null; then
+                echo -e "${RED}Error: python3 is not available and no sudo access${NC}"
+                exit 1
+            fi
         fi
     fi
 }
@@ -638,13 +681,19 @@ run_functionality_test() {
     # Test 5: Check that required Python packages are available
     echo ""
     echo "5. Checking required Python packages..."
-    for pkg in flask numpy cv2 PIL pyserial ezdxf; do
+    for pkg in flask numpy cv2 PIL ezdxf; do
         if python3 -c "import $pkg" 2>/dev/null; then
             echo "   ✓ $pkg is available"
         else
             echo "   ✗ $pkg is NOT available"
         fi
     done
+    # Special handling for pyserial since it's imported as 'serial'
+    if python3 -c "import serial" 2>/dev/null; then
+        echo "   ✓ pyserial is available (imported as 'serial')"
+    else
+        echo "   ✗ pyserial is NOT available"
+    fi
 
     # Test 6: Check if the auto-start toggle API endpoint works
     echo ""
@@ -881,18 +930,40 @@ while IFS= read -r req_line; do
         elif [ "$PACKAGE_NAME" = "Pillow" ]; then
             # Special handling for Pillow on Raspberry Pi to ensure pre-compiled wheels
             echo -e "${YELLOW}Installing Pillow with --only-binary for Raspberry Pi...${NC}"
-            if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --only-binary=all --prefer-binary "$req_line" 2>>"$LOG_FILE"; then
-                echo -e "${GREEN}✓ Pillow installed successfully${NC}"
-                INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
-            else
-                echo -e "${RED}✗ Failed to install Pillow, trying without --only-binary...${NC}"
-                # Try without --only-binary if the strict binary requirement fails
-                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$req_line" 2>>"$LOG_FILE"; then
-                    echo -e "${GREEN}✓ Pillow installed successfully (without --only-binary)${NC}"
+            if [ "$RPI_VERSION" = "bookworm" ]; then
+                # For Bookworm, use more lenient approach with piwheels
+                # Try multiple approaches for Bookworm compatibility
+                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --only-binary=Pillow --prefer-binary Pillow 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Pillow installed successfully for RPi Bookworm${NC}"
+                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                elif python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary Pillow 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Pillow installed successfully (with piwheels) for RPi Bookworm${NC}"
                     INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
                 else
-                    echo -e "${RED}✗ Failed to install Pillow${NC}"
-                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                    echo -e "${RED}✗ Failed to install Pillow for RPi Bookworm, trying basic installation...${NC}"
+                    if python3 -m pip install --break-system-packages Pillow 2>>"$LOG_FILE"; then
+                        echo -e "${GREEN}✓ Pillow installed successfully (basic) for RPi Bookworm${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install Pillow${NC}"
+                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                    fi
+                fi
+            else
+                # For older RPi OS versions
+                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --only-binary=all --prefer-binary "$req_line" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ Pillow installed successfully${NC}"
+                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                else
+                    echo -e "${RED}✗ Failed to install Pillow, trying without --only-binary...${NC}"
+                    # Try without --only-binary if the strict binary requirement fails
+                    if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$req_line" 2>>"$LOG_FILE"; then
+                        echo -e "${GREEN}✓ Pillow installed successfully (without --only-binary)${NC}"
+                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                    else
+                        echo -e "${RED}✗ Failed to install Pillow${NC}"
+                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                    fi
                 fi
             fi
         else
@@ -1059,16 +1130,45 @@ if [ $FAILED_COUNT -gt 0 ]; then
             success=false
 
             if [ "$DISTRO_TYPE" = "raspberry_pi" ]; then
-                # Try with piwheels optimized for Raspberry Pi first
-                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --only-binary=all --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
-                    echo -e "${GREEN}✓ Critical package $install_pkg_name installed for Raspberry Pi${NC}"
-                    success=true
-                elif python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
-                    echo -e "${GREEN}✓ Critical package $install_pkg_name installed for Raspberry Pi (without --only-binary)${NC}"
-                    success=true
-                elif python3 -m pip install --break-system-packages --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
-                    echo -e "${GREEN}✓ Critical package $install_pkg_name installed for Raspberry Pi (without piwheels)${NC}"
-                    success=true
+                if [ "$RPI_VERSION" = "bookworm" ]; then
+                    # Special handling for RPi Bookworm
+                    if [ "$install_pkg_name" = "Pillow" ]; then
+                        # For Pillow on Bookworm, use more targeted approach
+                        if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --only-binary=Pillow --prefer-binary Pillow 2>>"$LOG_FILE"; then
+                            echo -e "${GREEN}✓ Critical package $install_pkg_name installed for RPi Bookworm${NC}"
+                            success=true
+                        elif python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary Pillow 2>>"$LOG_FILE"; then
+                            echo -e "${GREEN}✓ Critical package $install_pkg_name installed for RPi Bookworm (with piwheels)${NC}"
+                            success=true
+                        else
+                            # Fallback for Bookworm
+                            if python3 -m pip install --break-system-packages Pillow 2>>"$LOG_FILE"; then
+                                echo -e "${GREEN}✓ Critical package $install_pkg_name installed for RPi Bookworm (fallback)${NC}"
+                                success=true
+                            fi
+                        fi
+                    else
+                        # For other packages on Bookworm
+                        if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                            echo -e "${GREEN}✓ Critical package $install_pkg_name installed for RPi Bookworm${NC}"
+                            success=true
+                        elif python3 -m pip install --break-system-packages --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                            echo -e "${GREEN}✓ Critical package $install_pkg_name installed for RPi Bookworm (without piwheels)${NC}"
+                            success=true
+                        fi
+                    fi
+                else
+                    # For older RPi OS versions
+                    if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --only-binary=all --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                        echo -e "${GREEN}✓ Critical package $install_pkg_name installed for Raspberry Pi${NC}"
+                        success=true
+                    elif python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                        echo -e "${GREEN}✓ Critical package $install_pkg_name installed for Raspberry Pi (without --only-binary)${NC}"
+                        success=true
+                    elif python3 -m pip install --break-system-packages --prefer-binary "$install_pkg_name" 2>>"$LOG_FILE"; then
+                        echo -e "${GREEN}✓ Critical package $install_pkg_name installed for Raspberry Pi (without piwheels)${NC}"
+                        success=true
+                    fi
                 fi
             else
                 # For other systems
