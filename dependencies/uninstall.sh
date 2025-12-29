@@ -166,15 +166,25 @@ fi
 # Uninstall python packages only if --remove-all or --complete flag is provided
 if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
     echo -e "${YELLOW}Removing Comparatron Python packages from system (complete removal)...${NC}"
-    
+
     # Get the requirements file to identify packages to remove
-    REQUIREMENTS_FILE="../dependencies/requirements.txt"
-    if [ -f "$REQUIREMENTS_FILE" ]; then
+    # Only requirements-simple.txt exists in the dependencies directory
+    REQUIREMENTS_FILE="dependencies/requirements-simple.txt"
+    if [ ! -f "$REQUIREMENTS_FILE" ]; then
+        echo -e "${YELLOW}Requirements file (requirements-simple.txt) not found, skipping package removal${NC}"
+    else
+        echo -e "${YELLOW}Using requirements-simple.txt for package uninstallation${NC}"
         while IFS= read -r line; do
-            if [[ $line =~ ^[^#].*== ]]; then
-                # Extract package name (before the ==)
-                PKG_NAME=$(echo "$line" | cut -d'=' -f1)
-                
+            # Skip empty lines and comments
+            if [[ -z "$line" || "$line" =~ ^[[:space:]]*# || "$line" =~ ^[[:space:]]*$ ]]; then
+                continue
+            fi
+
+            # Process lines that contain version specifiers (==, >=, etc.)
+            if [[ "$line" == *"=="* ]] || [[ "$line" == *">="* ]]; then
+                # Extract package name (before the == or >=)
+                PKG_NAME=$(echo "$line" | cut -d'=' -f1 | cut -d'>' -f1 | cut -d'<' -f1 | cut -d'!' -f1 | xargs)
+
                 if [ -n "$PKG_NAME" ]; then
                     echo -e "${YELLOW}Uninstalling $PKG_NAME...${NC}"
                     if command -v pip3 &> /dev/null; then
@@ -186,8 +196,6 @@ if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
             fi
         done < "$REQUIREMENTS_FILE"
         echo -e "${GREEN}Python packages uninstalled${NC}"
-    else
-        echo -e "${YELLOW}Requirements file not found, skipping package removal${NC}"
     fi
 else
     echo -e "${YELLOW}Skipping Python package removal (use --remove-all to completely remove Python packages)${NC}"
