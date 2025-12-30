@@ -16,29 +16,35 @@ LASERWEB_INSTALLED=false
 LASERWEB_SERVICES=()
 
 # Check for various LaserWeb4 installation locations and services
-if [ -d "$HOME/LaserWeb" ] || [ -d "$HOME/LaserWeb4" ] || [ -d "/opt/LaserWeb" ] || [ -d "/opt/LaserWeb4" ]; then
-    LASERWEB_INSTALLED=true
-    echo -e "${YELLOW}LaserWeb4 detected on system - will preserve shared resources${NC}"
+# But respect --remove-all flag which should override LaserWeb4 detection
+if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
+    echo -e "${YELLOW}--remove-all flag detected - will remove all resources regardless of LaserWeb4${NC}"
 else
-    # Check for LaserWeb systemd services
-    for service in "lw-comm-server.service" "laserweb.service" "lw-bridge.service" "laserweb4.service"; do
-        if [ -f "/etc/systemd/system/$service" ] || [ -f "/lib/systemd/system/$service" ] || [ -f "/usr/lib/systemd/system/$service" ]; then
-            LASERWEB_INSTALLED=true
-            LASERWEB_SERVICES+=("$service")
-        fi
-    done
-
-    if [ "$LASERWEB_INSTALLED" = true ]; then
-        echo -e "${YELLOW}LaserWeb4 services detected: ${LASERWEB_SERVICES[*]} - will preserve shared resources${NC}"
+    # Only check for LaserWeb4 if --remove-all is not specified
+    if [ -d "$HOME/LaserWeb" ] || [ -d "$HOME/LaserWeb4" ] || [ -d "/opt/LaserWeb" ] || [ -d "/opt/LaserWeb4" ]; then
+        LASERWEB_INSTALLED=true
+        echo -e "${YELLOW}LaserWeb4 detected on system - will preserve shared resources${NC}"
     else
-        echo -e "${GREEN}LaserWeb4 not detected - safe to remove all resources${NC}"
+        # Check for LaserWeb systemd services
+        for service in "lw-comm-server.service" "laserweb.service" "lw-bridge.service" "laserweb4.service"; do
+            if [ -f "/etc/systemd/system/$service" ] || [ -f "/lib/systemd/system/$service" ] || [ -f "/usr/lib/systemd/system/$service" ]; then
+                LASERWEB_INSTALLED=true
+                LASERWEB_SERVICES+=("$service")
+            fi
+        done
+
+        if [ "$LASERWEB_INSTALLED" = true ]; then
+            echo -e "${YELLOW}LaserWeb4 services detected: ${LASERWEB_SERVICES[*]} - will preserve shared resources${NC}"
+        else
+            echo -e "${GREEN}LaserWeb4 not detected - safe to remove all resources${NC}"
+        fi
     fi
 fi
 
 echo -e "${YELLOW}This will remove Comparatron configurations, automation, and system changes.${NC}"
 
 # Ask for confirmation
-if [ "$LASERWEB_INSTALLED" = true ]; then
+if [ "$LASERWEB_INSTALLED" = true ] && [ "$1" != "--remove-all" ] && [ "$1" != "--complete" ]; then
     read -p "Are you sure you want to uninstall Comparatron while preserving LaserWeb4? (y/N): " -n 1 -r
 else
     read -p "Are you sure you want to uninstall Comparatron? (y/N): " -n 1 -r
@@ -99,12 +105,12 @@ else
     TARGET_USER="$USER"
 fi
 
-# Handle dialout group membership carefully - only remove if LaserWeb4 is NOT installed
-if [ "$LASERWEB_INSTALLED" = true ]; then
+# Handle dialout group membership - respect --remove-all flag to override LaserWeb4 detection
+if [ "$LASERWEB_INSTALLED" = true ] && [ "$1" != "--remove-all" ] && [ "$1" != "--complete" ]; then
     echo -e "${YELLOW}LaserWeb4 is installed - preserving dialout group access for serial communication${NC}"
     echo -e "${GREEN}User remains in dialout group (needed for both Comparatron and LaserWeb4)${NC}"
 else
-    # Only try to remove from dialout group if LaserWeb4 is not installed
+    # Remove from dialout group - do this if --remove-all is specified even if LaserWeb4 detected
     echo -e "${YELLOW}Removing user from dialout group (serial access)...${NC}"
     if command -v sudo &> /dev/null; then
         # Check if the user is in the dialout group and remove them
@@ -119,12 +125,12 @@ else
     fi
 fi
 
-# Handle video group membership carefully - only remove if LaserWeb4 is NOT installed
-if [ "$LASERWEB_INSTALLED" = true ]; then
+# Handle video group membership - respect --remove-all flag to override LaserWeb4 detection
+if [ "$LASERWEB_INSTALLED" = true ] && [ "$1" != "--remove-all" ] && [ "$1" != "--complete" ]; then
     echo -e "${YELLOW}LaserWeb4 is installed - preserving video group access for camera functionality${NC}"
     echo -e "${GREEN}User remains in video group (needed for both Comparatron and LaserWeb4)${NC}"
 else
-    # Only try to remove from video group if LaserWeb4 is not installed
+    # Remove from video group - do this if --remove-all is specified even if LaserWeb4 detected
     echo -e "${YELLOW}Removing user from video group (camera access)...${NC}"
     if command -v sudo &> /dev/null; then
         # Check if the user is in the video group and remove them
@@ -139,12 +145,12 @@ else
     fi
 fi
 
-# Handle gpio group membership carefully - only remove if LaserWeb4 is NOT installed
-if [ "$LASERWEB_INSTALLED" = true ]; then
+# Handle gpio group membership - respect --remove-all flag to override LaserWeb4 detection
+if [ "$LASERWEB_INSTALLED" = true ] && [ "$1" != "--remove-all" ] && [ "$1" != "--complete" ]; then
     echo -e "${YELLOW}LaserWeb4 is installed - preserving gpio group access for GPIO functionality${NC}"
     echo -e "${GREEN}User remains in gpio group (if on Raspberry Pi)${NC}"
 else
-    # Only try to remove from gpio group if LaserWeb4 is not installed
+    # Remove from gpio group - do this if --remove-all is specified even if LaserWeb4 detected
     echo -e "${YELLOW}Removing user from gpio group (if on Raspberry Pi)...${NC}"
     if command -v sudo &> /dev/null; then
         if getent group gpio > /dev/null 2>&1; then
@@ -231,11 +237,13 @@ fi
 echo -e "${GREEN}=== Comparatron Uninstallation completed ===${NC}"
 echo -e "${GREEN}Comparatron components have been removed.${NC}"
 echo -e "${GREEN}Note: The source directory remains untouched (comparatron-optimised).${NC}"
-if [ "$LASERWEB_INSTALLED" = true ]; then
+if [ "$LASERWEB_INSTALLED" = true ] && [ "$1" != "--remove-all" ] && [ "$1" != "--complete" ]; then
     echo -e "${GREEN}LaserWeb4 components have been preserved and should continue working.${NC}"
     echo -e "${GREEN}Shared resources (dialout, video, gpio groups) have been preserved for LaserWeb4.${NC}"
 else
-    echo -e "${GREEN}No LaserWeb4 components detected, all safe to remove.${NC}"
+    if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
+        echo -e "${GREEN}Complete removal performed (including Python packages and system resources).${NC}"
+    fi
     echo -e "${GREEN}Removed resources included:${NC}"
     echo -e "${GREEN}- Systemd service${NC}"
     echo -e "${GREEN}- System-wide command${NC}"
