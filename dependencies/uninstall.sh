@@ -169,7 +169,8 @@ if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
 
     # Get the requirements file to identify packages to remove
     # Only requirements-simple.txt exists in the dependencies directory
-    REQUIREMENTS_FILE="dependencies/requirements-simple.txt"
+    # The script runs from the dependencies subdirectory, so look in current directory
+    REQUIREMENTS_FILE="./requirements-simple.txt"
     if [ ! -f "$REQUIREMENTS_FILE" ]; then
         echo -e "${YELLOW}Requirements file (requirements-simple.txt) not found, skipping package removal${NC}"
     else
