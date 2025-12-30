@@ -48,12 +48,12 @@ chmod +x uninstall.sh
 ./uninstall.sh
 ```
 
-Alternatively, the main installation script can handle uninstallation:
-```bash
-chmod +x install.sh
-./install.sh
-```
-Then select the uninstallation option when prompted.
+The uninstallation script will:
+- Stop and remove the systemd service (if installed)
+- Remove the system-wide `comparatron` command
+- Remove user from system groups (dialout, video, gpio) if LaserWeb4 is not installed
+- Optionally remove Python packages with the `--remove-all` flag
+- Clean up configuration files
 
 ### Running the Application
 
