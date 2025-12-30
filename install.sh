@@ -1021,12 +1021,17 @@ while IFS= read -r req_line; do
             fi
         else
             # For other packages, install normally
-            if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$PACKAGE_NAME" 2>>"$LOG_FILE"; then
-                echo -e "${GREEN}✓ $PACKAGE_NAME installed successfully${NC}"
-                INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+            # Make sure PACKAGE_NAME is not empty before installing
+            if [ -n "$PACKAGE_NAME" ]; then
+                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "$PACKAGE_NAME" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ $PACKAGE_NAME installed successfully${NC}"
+                    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                else
+                    echo -e "${RED}✗ Failed to install $PACKAGE_NAME${NC}"
+                    FAILED_COUNT=$((FAILED_COUNT + 1))
+                fi
             else
-                echo -e "${RED}✗ Failed to install $PACKAGE_NAME${NC}"
-                FAILED_COUNT=$((FAILED_COUNT + 1))
+                echo -e "${YELLOW}Skipping empty package name from: $req_line${NC}"
             fi
         fi
     else
@@ -1067,22 +1072,28 @@ while IFS= read -r req_line; do
                 fi
             else
                 # Regular package installation
-                if python3 -m pip install --break-system-packages --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
-                    if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
-                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
-                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                # Make sure req_line is not empty before installing
+                if [ -n "$req_line" ]; then
+                    if python3 -m pip install --break-system-packages --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                        if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                            echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                        else
+                            echo -e "${RED}✗ Failed to install $req_line${NC}"
+                            FAILED_COUNT=$((FAILED_COUNT + 1))
+                        fi
                     else
-                        echo -e "${RED}✗ Failed to install $req_line${NC}"
-                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                        if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                            echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                        else
+                            echo -e "${RED}✗ Failed to install $req_line${NC}"
+                            FAILED_COUNT=$((FAILED_COUNT + 1))
+                        fi
                     fi
                 else
-                    if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
-                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
-                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
-                    else
-                        echo -e "${RED}✗ Failed to install $req_line${NC}"
-                        FAILED_COUNT=$((FAILED_COUNT + 1))
-                    fi
+                    echo -e "${YELLOW}Skipping empty requirement line${NC}"
+                    FAILED_COUNT=$((FAILED_COUNT + 1))  # Count as failure if it should have been valid
                 fi
             fi
         else
@@ -1121,22 +1132,28 @@ while IFS= read -r req_line; do
                 fi
             else
                 # Regular package installation
-                if python3 -m pip install --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
-                    if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
-                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
-                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                # Make sure req_line is not empty before installing
+                if [ -n "$req_line" ]; then
+                    if python3 -m pip install --prefer-binary "$req_line" 2>>"$LOG_FILE" | grep -q "externally-managed-environment"; then
+                        if python3 -m pip install --break-system-packages --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                            echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                        else
+                            echo -e "${RED}✗ Failed to install $req_line${NC}"
+                            FAILED_COUNT=$((FAILED_COUNT + 1))
+                        fi
                     else
-                        echo -e "${RED}✗ Failed to install $req_line${NC}"
-                        FAILED_COUNT=$((FAILED_COUNT + 1))
+                        if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
+                            echo -e "${GREEN}✓ $req_line installed successfully${NC}"
+                            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+                        else
+                            echo -e "${RED}✗ Failed to install $req_line${NC}"
+                            FAILED_COUNT=$((FAILED_COUNT + 1))
+                        fi
                     fi
                 else
-                    if python3 -m pip install --prefer-binary "$req_line" >> "$LOG_FILE" 2>&1; then
-                        echo -e "${GREEN}✓ $req_line installed successfully${NC}"
-                        INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
-                    else
-                        echo -e "${RED}✗ Failed to install $req_line${NC}"
-                        FAILED_COUNT=$((FAILED_COUNT + 1))
-                    fi
+                    echo -e "${YELLOW}Skipping empty requirement line${NC}"
+                    FAILED_COUNT=$((FAILED_COUNT + 1))  # Count as failure if it should have been valid
                 fi
             fi
         fi
@@ -1276,6 +1293,13 @@ setup_systemd_service
 
 # Create system-wide command
 create_system_command
+
+# Restart the service to ensure it picks up any code changes made during installation
+if [ -f "/etc/systemd/system/comparatron.service" ] && command -v sudo &> /dev/null; then
+    echo -e "${YELLOW}Restarting Comparatron service to apply any code changes...${NC}"
+    sudo systemctl restart comparatron.service
+    sleep 3  # Wait for service to restart properly
+fi
 
 # Run functionality test
 echo -e "${YELLOW}Running functionality test...${NC}"
