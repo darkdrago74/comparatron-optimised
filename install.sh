@@ -70,16 +70,25 @@ check_existing_installation() {
         EXISTS=1
     fi
 
-    # Check for required Python packages
-    MISSING_PKGS=()
-    for pkg in flask numpy cv2 PIL ezdxf; do
-        if ! python3 -c "import $pkg" 2>/dev/null; then
-            MISSING_PKGS+=("$pkg")
+    # Check if Python 3 and pip are available first before checking packages
+    if ! command -v python3 &> /dev/null; then
+        echo -e "${YELLOW}  Python 3 not found, skipping package check until after prerequisites are installed${NC}"
+        MISSING_PKGS=()
+    elif ! command -v pip3 &> /dev/null; then
+        echo -e "${YELLOW}  pip3 not found, skipping package check until after prerequisites are installed${NC}"
+        MISSING_PKGS=()
+    else
+        # Check for required Python packages only if Python and pip are available
+        MISSING_PKGS=()
+        for pkg in flask numpy cv2 PIL ezdxf; do
+            if ! python3 -c "import $pkg" 2>/dev/null; then
+                MISSING_PKGS+=("$pkg")
+            fi
+        done
+        # Special handling for pyserial since it's imported as 'serial'
+        if ! python3 -c "import serial" 2>/dev/null; then
+            MISSING_PKGS+=("pyserial")
         fi
-    done
-    # Special handling for pyserial since it's imported as 'serial'
-    if ! python3 -c "import serial" 2>/dev/null; then
-        MISSING_PKGS+=("pyserial")
     fi
 
     if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
@@ -256,7 +265,11 @@ check_existing_installation() {
             fi
         fi
     else
-        echo -e "${GREEN}  ✓ All required Python packages are available${NC}"
+        if command -v python3 &> /dev/null && command -v pip3 &> /dev/null; then
+            echo -e "${GREEN}  ✓ All required Python packages are available${NC}"
+        else
+            echo -e "${YELLOW}  Python and/or pip not available - packages will be checked after installation${NC}"
+        fi
     fi
 
     # Check if user is in required groups
@@ -446,14 +459,23 @@ install_debian() {
             # Install basic system dependencies for RPi
             $SUDO apt install -y python3 python3-pip python3-dev
 
-            # For Bookworm, some packages names might differ or be unavailable
-            # Try to install the most commonly needed packages for RPi Bookworm
-            $SUDO apt install -y build-essential libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev libfontconfig1-dev libharfbuzz-dev libfreetype6-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+            # Install critical system libraries that numpy, opencv, and other packages depend on
+            # These are often the missing pieces that cause import failures (like libopenblas.so.0)
+            $SUDO apt install -y libopenblas-dev libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 \
+                libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev \
+                libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev \
+                libfontconfig1-dev libharfbuzz-dev libfreetype6-dev libxcb-render0-dev \
+                libxcb-shape0-dev libxcb-xfixes0-dev libopenjp2-7-dev libilmbase-dev \
+                libopenexr-dev libgstreamer-plugins-base1.0-dev libavresample-dev \
+                libgfortran5 libquadmath0 libopenblas0 liblapack3 liblapack-dev \
+                libgtk-3-0 libgtk-3-dev libtbb2 libtbb-dev
 
             # If the above fails due to package unavailability (common in RPi Bookworm), install minimal set
             if [ $? -ne 0 ]; then
                 echo -e "${YELLOW}Some packages unavailable on RPi Bookworm, installing minimal set...${NC}"
-                $SUDO apt install -y python3 python3-dev python3-pip build-essential libatlas-base-dev libjpeg-dev libpng-dev libtiff5-dev python3-setuptools python3-wheel
+                $SUDO apt install -y python3 python3-dev python3-pip build-essential libatlas-base-dev \
+                    libjpeg-dev libpng-dev libtiff5-dev python3-setuptools python3-wheel \
+                    libopenblas0 liblapack3 libgtk-3-0
             fi
         fi
 
@@ -967,6 +989,16 @@ while IFS= read -r req_line; do
         # Special handling for opencv-python-headless on Raspberry Pi - use regular opencv-python instead
         if [ "$PACKAGE_NAME" = "opencv-python-headless" ]; then
             echo -e "${YELLOW}Installing opencv-python (not headless) for Raspberry Pi...${NC}"
+            # Ensure numpy is compatible before installing opencv
+            if python3 -c "import numpy as np; print('NumPy version:', np.__version__)" 2>/dev/null; then
+                echo -e "${GREEN}NumPy compatibility check passed${NC}"
+            else
+                echo -e "${YELLOW}NumPy compatibility issue detected, attempting reinstallation with older version...${NC}"
+                # Try to reinstall numpy with a compatible version for opencv
+                if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "numpy>=1.21.0,<2.0.0" 2>>"$LOG_FILE"; then
+                    echo -e "${GREEN}✓ NumPy reinstalled with compatible version${NC}"
+                fi
+            fi
             if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary opencv-python 2>>"$LOG_FILE"; then
                 echo -e "${GREEN}✓ opencv-python installed successfully${NC}"
                 INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
@@ -1261,6 +1293,20 @@ if [ $FAILED_COUNT -gt 0 ]; then
             echo -e "${GREEN}✓ Critical package $critical_pkg is available${NC}"
         fi
     done
+fi
+
+# Check for numpy/opencv compatibility issue specifically
+echo -e "${YELLOW}Checking for numpy/opencv compatibility issues...${NC}"
+if python3 -c "import numpy as np, cv2; print('NumPy version:', np.__version__); print('OpenCV version:', cv2.__version__)" 2>/dev/null; then
+    echo -e "${GREEN}✓ NumPy and OpenCV compatibility verified${NC}"
+else
+    echo -e "${YELLOW}NumPy/opencv compatibility issue detected, attempting to fix with compatible versions...${NC}"
+    # Try installing a numpy version that's compatible with opencv
+    if python3 -m pip install --break-system-packages --index-url https://www.piwheels.org/simple/ --trusted-host www.piwheels.org --prefer-binary "numpy>=1.21.0,<2.0.0" 2>>"$LOG_FILE"; then
+        echo -e "${GREEN}✓ NumPy reinstalled with compatible version for OpenCV${NC}"
+    else
+        echo -e "${YELLOW}Could not install compatible NumPy version, checking if current setup still works...${NC}"
+    fi
 fi
 
 # Add user to necessary groups
