@@ -173,14 +173,34 @@ fi
 if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
     echo -e "${YELLOW}Removing Comparatron Python packages from system (complete removal)...${NC}"
 
-    # Get the requirements file to identify packages to remove
-    # Only requirements-simple.txt exists in the dependencies directory
-    # The script runs from the dependencies subdirectory, so look in current directory
-    REQUIREMENTS_FILE="./requirements-simple.txt"
-    if [ ! -f "$REQUIREMENTS_FILE" ]; then
-        echo -e "${YELLOW}Requirements file (requirements-simple.txt) not found, skipping package removal${NC}"
+    # Remove ALL user-installed packages, not just those from requirements
+    echo -e "${YELLOW}Removing ALL user-installed Python packages...${NC}"
+
+    # First, get list of user-installed packages and remove them one by one
+    if command -v pip3 &> /dev/null; then
+        USER_PACKAGES=$(pip3 list --user --format=freeze | cut -d'=' -f1 | grep -v "^$")
+
+        if [ -n "$USER_PACKAGES" ]; then
+            echo -e "${YELLOW}Found user packages to remove:${NC}"
+            for pkg in $USER_PACKAGES; do
+                echo -e "${YELLOW}Uninstalling $pkg...${NC}"
+                # Skip system packages to prevent breaking system
+                if [[ "$pkg" != "pip" && "$pkg" != "setuptools" && "$pkg" != "wheel" ]]; then
+                    pip3 uninstall -y "$pkg" 2>/dev/null || true
+                fi
+            done
+            echo -e "${GREEN}All user-installed packages removed (except pip, setuptools, wheel)${NC}"
+        else
+            echo -e "${GREEN}No user-installed packages found to remove${NC}"
+        fi
     else
-        echo -e "${YELLOW}Using requirements-simple.txt for package uninstallation${NC}"
+        echo -e "${YELLOW}pip3 not available, skipping user package removal${NC}"
+    fi
+
+    # Also attempt to remove packages from requirements file for completeness
+    REQUIREMENTS_FILE="./requirements-simple.txt"
+    if [ -f "$REQUIREMENTS_FILE" ]; then
+        echo -e "${YELLOW}Also removing packages from requirements file...${NC}"
         while IFS= read -r line; do
             # Skip empty lines and comments
             if [[ -z "$line" || "$line" =~ ^[[:space:]]*# || "$line" =~ ^[[:space:]]*$ ]]; then
@@ -193,7 +213,7 @@ if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
                 PKG_NAME=$(echo "$line" | cut -d'=' -f1 | cut -d'>' -f1 | cut -d'<' -f1 | cut -d'!' -f1 | xargs)
 
                 if [ -n "$PKG_NAME" ]; then
-                    echo -e "${YELLOW}Uninstalling $PKG_NAME...${NC}"
+                    echo -e "${YELLOW}Ensuring $PKG_NAME is uninstalled...${NC}"
                     if command -v pip3 &> /dev/null; then
                         pip3 uninstall -y "$PKG_NAME" 2>/dev/null || true
                     elif command -v python3 &> /dev/null; then
@@ -202,7 +222,12 @@ if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
                 fi
             fi
         done < "$REQUIREMENTS_FILE"
-        echo -e "${GREEN}Python packages uninstalled${NC}"
+    fi
+
+    # Clear pip cache to completely clean up
+    if command -v pip3 &> /dev/null; then
+        pip3 cache purge 2>/dev/null || true
+        echo -e "${GREEN}Pip cache purged${NC}"
     fi
 else
     echo -e "${YELLOW}Skipping Python package removal (use --remove-all to completely remove Python packages)${NC}"
