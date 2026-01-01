@@ -461,22 +461,37 @@ install_debian() {
 
             # Install critical system libraries that numpy, opencv, and other packages depend on
             # These are often the missing pieces that cause import failures (like libopenblas.so.0)
-            $SUDO apt install -y libopenblas-dev libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103 \
-                libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev \
-                libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev \
-                libfontconfig1-dev libharfbuzz-dev libfreetype6-dev libxcb-render0-dev \
-                libxcb-shape0-dev libxcb-xfixes0-dev libopenjp2-7-dev libilmbase-dev \
-                libopenexr-dev libgstreamer-plugins-base1.0-dev libavresample-dev \
-                libgfortran5 libquadmath0 libopenblas0 liblapack3 liblapack-dev \
-                libgtk-3-0 libgtk-3-dev libtbb2 libtbb-dev
+            # Try to install packages one by one to handle missing packages gracefully
+            PKG_LIST="libopenblas-dev libatlas-base-dev libhdf5-dev libhdf5-serial-dev libhdf5-103"
+            PKG_LIST="$PKG_LIST libgstreamer1.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev"
+            PKG_LIST="$PKG_LIST libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff5-dev libjasper-dev"
+            PKG_LIST="$PKG_LIST libfontconfig1-dev libharfbuzz-dev libfreetype6-dev libxcb-render0-dev"
+            PKG_LIST="$PKG_LIST libxcb-shape0-dev libxcb-xfixes0-dev libopenjp2-7-dev libilmbase-dev"
+            PKG_LIST="$PKG_LIST libopenexr-dev libgstreamer-plugins-base1.0-dev libavresample-dev"
+            PKG_LIST="$PKG_LIST libgfortran5 libopenblas0 liblapack3 liblapack-dev"
+            PKG_LIST="$PKG_LIST libgtk-3-0 libgtk-3-dev"
 
-            # If the above fails due to package unavailability (common in RPi Bookworm), install minimal set
-            if [ $? -ne 0 ]; then
-                echo -e "${YELLOW}Some packages unavailable on RPi Bookworm, installing minimal set...${NC}"
-                $SUDO apt install -y python3 python3-dev python3-pip build-essential libatlas-base-dev \
-                    libjpeg-dev libpng-dev libtiff5-dev python3-setuptools python3-wheel \
-                    libopenblas0 liblapack3 libgtk-3-0
-            fi
+            # Try to install the most critical packages, skipping unavailable ones
+            for pkg in $PKG_LIST; do
+                if ! $SUDO apt install -y "$pkg" 2>/dev/null; then
+                    echo -e "${YELLOW}Package $pkg not available on this system, skipping...${NC}"
+                fi
+            done
+
+            # Also try some potentially missing packages with common alternatives
+            for pkg in "libquadmath0" "libtbb2" "libtbb-dev" "libtbbmalloc2"; do
+                if ! $SUDO apt install -y "$pkg" 2>/dev/null; then
+                    echo -e "${YELLOW}Package $pkg not available on this system, trying alternatives...${NC}"
+                    # Try common alternatives
+                    if [ "$pkg" = "libquadmath0" ]; then
+                        $SUDO apt install -y libquadmath-dev 2>/dev/null || true
+                    elif [ "$pkg" = "libtbb2" ]; then
+                        $SUDO apt install -y libtbbmalloc2 2>/dev/null || true
+                    elif [ "$pkg" = "libtbb-dev" ]; then
+                        $SUDO apt install -y libtbb12 libtbb12-dev 2>/dev/null || true
+                    fi
+                fi
+            done
         fi
 
         # Enable camera interface on Raspberry Pi if possible
