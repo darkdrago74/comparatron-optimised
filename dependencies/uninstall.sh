@@ -186,7 +186,11 @@ if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
                 echo -e "${YELLOW}Uninstalling $pkg...${NC}"
                 # Skip system packages to prevent breaking system
                 if [[ "$pkg" != "pip" && "$pkg" != "setuptools" && "$pkg" != "wheel" ]]; then
-                    pip3 uninstall -y "$pkg" 2>/dev/null || true
+                    # Try with --break-system-packages first (for systems with PEP 668 like RPi)
+                    if ! pip3 uninstall --break-system-packages -y "$pkg" 2>/dev/null; then
+                        # Fallback to regular uninstall (might work on some systems)
+                        pip3 uninstall -y "$pkg" 2>/dev/null || true
+                    fi
                 fi
             done
             echo -e "${GREEN}All user-installed packages removed (except pip, setuptools, wheel)${NC}"
@@ -215,9 +219,17 @@ if [ "$1" = "--remove-all" ] || [ "$1" = "--complete" ]; then
                 if [ -n "$PKG_NAME" ]; then
                     echo -e "${YELLOW}Ensuring $PKG_NAME is uninstalled...${NC}"
                     if command -v pip3 &> /dev/null; then
-                        pip3 uninstall -y "$PKG_NAME" 2>/dev/null || true
+                        # Try with --break-system-packages first (for systems with PEP 668 like RPi)
+                        if ! pip3 uninstall --break-system-packages -y "$PKG_NAME" 2>/dev/null; then
+                            # Fallback to regular uninstall
+                            pip3 uninstall -y "$PKG_NAME" 2>/dev/null || true
+                        fi
                     elif command -v python3 &> /dev/null; then
-                        python3 -m pip uninstall -y "$PKG_NAME" 2>/dev/null || true
+                        # Try with --break-system-packages first (for systems with PEP 668 like RPi)
+                        if ! python3 -m pip uninstall --break-system-packages -y "$PKG_NAME" 2>/dev/null; then
+                            # Fallback to regular uninstall
+                            python3 -m pip uninstall -y "$PKG_NAME" 2>/dev/null || true
+                        fi
                     fi
                 fi
             fi
