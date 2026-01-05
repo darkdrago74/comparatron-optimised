@@ -310,6 +310,71 @@ comparatron-optimised/
 
 See the LICENSE file for licensing information.
 
+## LaserWeb4 Integration
+
+Comparatron includes optional integration with LaserWeb4 for enhanced CNC control capabilities. The installation process has been enhanced with a unified script that handles both installation and uninstallation.
+
+### LaserWeb4 Installation
+
+To install LaserWeb4 with the enhanced installation script:
+
+1. Navigate to the laserweb4 directory:
+   ```bash
+   cd laserweb4
+   ```
+
+2. Run the installation script:
+   ```bash
+   chmod +x install_laserweb4.sh
+   ./install_laserweb4.sh
+   ```
+
+3. The script will present you with options:
+   - Install LaserWeb4
+   - Uninstall LaserWeb4
+   - Check current installation status
+
+4. If installing, you'll be prompted to choose between:
+   - Node.js 16 (recommended for LaserWeb4)
+   - Node.js 18 (with additional libraries)
+
+5. The script will handle all dependencies, including required libraries (libusb-1.0-0-dev and libudev-dev) for proper serial communication.
+
+### LaserWeb4 Uninstallation
+
+To completely remove LaserWeb4:
+
+1. Navigate to the laserweb4 directory:
+   ```bash
+   cd laserweb4
+   ```
+
+2. Run the uninstallation script:
+   ```bash
+   chmod +x uninstall_laserweb4.sh
+   ./uninstall_laserweb4.sh
+   ```
+
+The uninstallation script will:
+- Stop and disable the LaserWeb service
+- Remove LaserWeb directories and configuration files
+- Remove nginx configuration if set up
+- Remove start scripts
+- Optionally remove Node.js if installed by the script
+- Clean up npm cache and global packages
+- Optionally remove user from dialout group
+
+### Checking Installation Status
+
+To check the current status of LaserWeb4 installation:
+1. Run the installation script and select option 3
+2. The script will report on:
+   - Node.js version installed
+   - npm version
+   - LaserWeb directories
+   - Service status
+   - Required libraries
+
 ## Support
 
 For issues or questions, please open an issue on the GitHub repository.
