@@ -59,11 +59,17 @@ if [ "$ACTION" = "check" ]; then
     else
         echo -e "${RED}✗ LaserWeb directory not found${NC}"
     fi
-    
+
     if [ -d "$HOME/LaserWeb4" ]; then
         echo -e "${GREEN}✓ LaserWeb4 directory found at: $HOME/LaserWeb4${NC}"
     else
         echo -e "${RED}✗ LaserWeb4 directory not found${NC}"
+    fi
+
+    if [ -d "$HOME/lw.comm-server" ]; then
+        echo -e "${GREEN}✓ lw.comm-server directory found at: $HOME/lw.comm-server${NC}"
+    else
+        echo -e "${RED}✗ lw.comm-server directory not found${NC}"
     fi
     
     # Check service
@@ -137,7 +143,7 @@ if [ "$ACTION" = "uninstall" ]; then
     fi
 
     # Remove LaserWeb directories
-    LASERWEB_DIRS=("$HOME/LaserWeb" "$HOME/LaserWeb4")
+    LASERWEB_DIRS=("$HOME/LaserWeb" "$HOME/LaserWeb4" "$HOME/lw.comm-server")
     for dir in "${LASERWEB_DIRS[@]}"; do
         if [ -d "$dir" ]; then
             echo -e "${YELLOW}Removing LaserWeb directory: $dir${NC}"
@@ -149,7 +155,7 @@ if [ "$ACTION" = "uninstall" ]; then
     done
 
     # Remove start scripts
-    START_SCRIPTS=("$HOME/start_laserweb.sh" "$HOME/start_laserweb4.sh")
+    START_SCRIPTS=("$HOME/start_laserweb.sh" "$HOME/start_laserweb4.sh" "$HOME/start_laserweb_combined.sh")
     for script in "${START_SCRIPTS[@]}"; do
         if [ -f "$script" ]; then
             echo -e "${YELLOW}Removing start script: $script${NC}"
@@ -368,6 +374,20 @@ else
     cd "$INSTALL_DIR"
 fi
 
+# Also install lw.comm-server as mentioned in LaserWeb documentation
+echo -e "${YELLOW}Installing lw.comm-server as recommended in LaserWeb documentation...${NC}"
+LWCOMM_DIR="$HOME/lw.comm-server"
+if [ -d "$LWCOMM_DIR" ]; then
+    echo -e "${YELLOW}lw.comm-server directory already exists, updating...${NC}"
+    cd "$LWCOMM_DIR"
+    git pull
+else
+    git clone https://github.com/LaserWeb/lw.comm-server.git "$LWCOMM_DIR"
+    cd "$LWCOMM_DIR"
+    # Install lw.comm-server dependencies
+    npm install
+fi
+
 # Install Node.js dependencies with production flags to avoid dev dependencies that might cause issues
 echo -e "${YELLOW}Installing Node.js dependencies (this may take a while on Raspberry Pi)...${NC}"
 npm install --production --prefer-offline --no-audit --no-fund
@@ -509,20 +529,42 @@ EOF
 chmod +x "$START_SCRIPT"
 echo -e "${GREEN}Created start script at: $START_SCRIPT${NC}"
 
+# Create a combined start script that starts both lw.comm-server and LaserWeb4
+COMBINED_START_SCRIPT="$HOME/start_laserweb_combined.sh"
+cat > "$COMBINED_START_SCRIPT" << 'EOF'
+#!/bin/bash
+# Start lw.comm-server first
+echo "Starting lw.comm-server..."
+cd $HOME/lw.comm-server
+node server &
+LWCOMM_PID=$!
+
+# Wait a moment for lw.comm-server to start
+sleep 3
+
+# Start LaserWeb4
+echo "Starting LaserWeb4..."
+cd $HOME/LaserWeb4
+npm start
+
+# Clean up background processes when script exits
+trap "kill $LWCOMM_PID 2>/dev/null; exit" INT TERM EXIT
+EOF
+chmod +x "$COMBINED_START_SCRIPT"
+echo -e "${GREEN}Created combined start script at: $COMBINED_START_SCRIPT${NC}"
+
 # Create a systemd service file for LaserWeb
 SERVICE_FILE="/etc/systemd/system/laserweb.service"
 SERVICE_CONTENT="[Unit]
-Description=LaserWeb4 CNC Control
+Description=LaserWeb4 CNC Control with lw.comm-server
 After=network.target
 
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/npm start
+ExecStart=$COMBINED_START_SCRIPT
 Restart=always
 RestartSec=10
-Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target"
