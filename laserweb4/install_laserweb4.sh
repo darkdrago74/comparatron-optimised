@@ -531,13 +531,13 @@ echo -e "${GREEN}Created start script at: $START_SCRIPT${NC}"
 
 # Create a combined start script that starts both lw.comm-server and LaserWeb4
 COMBINED_START_SCRIPT="$HOME/start_laserweb_combined.sh"
-cat > "$COMBINED_START_SCRIPT" << 'EOF'
+cat > "$COMBINED_START_SCRIPT" << EOF
 #!/bin/bash
 # Start lw.comm-server first
 echo "Starting lw.comm-server..."
 cd $HOME/lw.comm-server
 node server &
-LWCOMM_PID=$!
+LWCOMM_PID=\$!
 
 # Wait a moment for lw.comm-server to start
 sleep 3
@@ -548,7 +548,7 @@ cd $HOME/LaserWeb4
 npm start
 
 # Clean up background processes when script exits
-trap "kill $LWCOMM_PID 2>/dev/null; exit" INT TERM EXIT
+trap "kill \$LWCOMM_PID 2>/dev/null; exit" INT TERM EXIT
 EOF
 chmod +x "$COMBINED_START_SCRIPT"
 echo -e "${GREEN}Created combined start script at: $COMBINED_START_SCRIPT${NC}"
