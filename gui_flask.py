@@ -399,7 +399,100 @@ class ComparatronFlaskGUI:
                 elif not enable and result.returncode != 0 and 'disabled' not in getattr(result, 'stdout', ''):
                     return jsonify({'success': False, 'message': 'Failed to disable auto-start'}), 500
 
-                return jsonify({'success': True, 'message': f'Auto-start {"enabled" if enable else "disabled"} successfully'})
+                return jsonify({'success': True, 'message': f'Auto-start {"enabled" if enable else "disabled"} successfully. Changes will take effect on next reboot.'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)}), 500
+
+        @self.app.route('/api/restart_server', methods=['POST'])
+        def restart_server():
+            """Restart the Comparatron web server"""
+            import subprocess
+            import os
+            import signal
+            import sys
+            import time
+
+            try:
+                # Schedule a delayed restart to allow the response to be sent
+                def delayed_restart():
+                    time.sleep(1)  # Wait 1 second to ensure response is sent
+                    os.kill(os.getpid(), signal.SIGTERM)  # Terminate the current process
+
+                import threading
+                restart_thread = threading.Thread(target=delayed_restart)
+                restart_thread.daemon = True
+                restart_thread.start()
+
+                return jsonify({'success': True, 'message': 'Server restart initiated'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)}), 500
+
+        @self.app.route('/api/shutdown_server', methods=['POST'])
+        def shutdown_server():
+            """Shutdown the Comparatron web server"""
+            import subprocess
+            import os
+            import signal
+            import sys
+            import time
+
+            try:
+                # Schedule a delayed shutdown to allow the response to be sent
+                def delayed_shutdown():
+                    time.sleep(30)  # Wait 30 seconds before shutting down
+                    os.kill(os.getpid(), signal.SIGTERM)  # Terminate the current process
+
+                import threading
+                shutdown_thread = threading.Thread(target=delayed_shutdown)
+                shutdown_thread.daemon = True
+                shutdown_thread.start()
+
+                return jsonify({'success': True, 'message': 'Server shutdown initiated. Server will shut down in 30 seconds.'})
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)}), 500
+
+        @self.app.route('/api/restart_pi', methods=['POST'])
+        def restart_pi():
+            """Restart the Raspberry Pi (only works on Raspberry Pi systems)"""
+            import subprocess
+            import os
+            import platform
+
+            try:
+                # Check if this is a Raspberry Pi by checking hardware
+                is_raspberry_pi = False
+                try:
+                    with open('/proc/cpuinfo', 'r') as f:
+                        cpuinfo = f.read()
+                        if 'Raspberry Pi' in cpuinfo or 'BCM' in cpuinfo:
+                            is_raspberry_pi = True
+                except:
+                    # Alternative check
+                    try:
+                        result = subprocess.run(['cat', '/sys/firmware/devicetree/base/model'],
+                                              capture_output=True, text=True)
+                        if 'Raspberry' in result.stdout:
+                            is_raspberry_pi = True
+                    except:
+                        pass
+
+                if not is_raspberry_pi:
+                    return jsonify({'success': False, 'message': 'This system does not appear to be a Raspberry Pi'}), 400
+
+                # Check if user has sudo access
+                if os.getenv('SUDO_USER') is None:
+                    # Try to run with sudo
+                    result = subprocess.run(['sudo', 'reboot'],
+                                          capture_output=True, text=True)
+                else:
+                    # Already running as sudo/root
+                    result = subprocess.run(['reboot'],
+                                          capture_output=True, text=True)
+
+                if result.returncode == 0:
+                    return jsonify({'success': True, 'message': 'Raspberry Pi restart initiated'})
+                else:
+                    return jsonify({'success': False, 'message': f'Failed to restart Pi: {result.stderr}'}), 500
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)}), 500
 

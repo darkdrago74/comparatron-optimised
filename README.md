@@ -312,18 +312,28 @@ See the LICENSE file for licensing information.
 
 ## LaserWeb4 Integration
 
-Comparatron includes optional integration with LaserWeb4 for enhanced CNC control capabilities. The installation process has been enhanced with a unified script that handles both installation and uninstallation.
+Comparatron includes optional integration with LaserWeb4 for enhanced CNC control capabilities. The installation process has been streamlined with the main installation script now offering to run the dedicated LaserWeb4 installation script.
 
 ### LaserWeb4 Installation
 
-To install LaserWeb4 with the enhanced installation script:
+To install LaserWeb4, you have two options:
 
+**Option 1: During Comparatron installation (recommended)**
+1. Run the main installation script:
+   ```bash
+   chmod +x install.sh
+   ./install.sh
+   ```
+2. When prompted, choose to install LaserWeb4
+3. The main script will automatically call the dedicated LaserWeb4 installation script
+
+**Option 2: Separate installation**
 1. Navigate to the laserweb4 directory:
    ```bash
    cd laserweb4
    ```
 
-2. Run the installation script:
+2. Run the dedicated installation script:
    ```bash
    chmod +x install_laserweb4.sh
    ./install_laserweb4.sh
@@ -342,17 +352,17 @@ To install LaserWeb4 with the enhanced installation script:
 
 ### LaserWeb4 Uninstallation
 
-To completely remove LaserWeb4:
+LaserWeb4 can be uninstalled separately:
 
 1. Navigate to the laserweb4 directory:
    ```bash
    cd laserweb4
    ```
 
-2. Run the uninstallation script:
+2. Run the installation script and select "Uninstall LaserWeb4":
    ```bash
-   chmod +x uninstall_laserweb4.sh
-   ./uninstall_laserweb4.sh
+   chmod +x install_laserweb4.sh
+   ./install_laserweb4.sh
    ```
 
 The uninstallation script will:
@@ -367,8 +377,9 @@ The uninstallation script will:
 ### Checking Installation Status
 
 To check the current status of LaserWeb4 installation:
-1. Run the installation script and select option 3
-2. The script will report on:
+1. Navigate to the laserweb4 directory
+2. Run the installation script and select option 3
+3. The script will report on:
    - Node.js version installed
    - npm version
    - LaserWeb directories
