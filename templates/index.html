@@ -210,6 +210,24 @@
                             <button id="autoStartToggle" class="btn" onclick="toggleAutoStart()">Checking...</button>
                         </div>
                     </div>
+                    <div class="grid-container" style="margin-top: 10px;">
+                        <div>Server Management:</div>
+                        <div>
+                            <button class="btn btn-warning" onclick="restartWebServer()">Restart Web Server</button>
+                        </div>
+                    </div>
+                    <div class="grid-container" style="margin-top: 10px;">
+                        <div>Server Shutdown:</div>
+                        <div>
+                            <button class="btn btn-danger" onclick="shutdownWebServer()">Shutdown Web Server</button>
+                        </div>
+                    </div>
+                    <div class="grid-container" style="margin-top: 10px;">
+                        <div>System Management:</div>
+                        <div>
+                            <button class="btn btn-danger" onclick="restartPi()">Restart Pi</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="panel">
@@ -433,7 +451,7 @@
                 checkAutoStartStatus();  // Refresh the button state
                 if (data.success) {
                     const action = enable ? 'enabled' : 'disabled';
-                    alert(`Auto-start has been ${action}. System restart may be required to take effect.`);
+                    alert(`Auto-start has been ${action}. Changes will take effect on next reboot.`);
                 } else {
                     alert(`Failed to toggle auto-start: ${data.message}`);
                 }
@@ -442,6 +460,78 @@
                 console.error('Error toggling auto-start:', error);
                 alert('Error toggling auto-start. Check console for details.');
             });
+        }
+
+        // Restart the web server
+        function restartWebServer() {
+            if (confirm('Are you sure you want to restart the Comparatron web server? The interface will be temporarily unavailable.')) {
+                fetch('/api/restart_server', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message + '\n\nThe web server will restart shortly. You may need to refresh the page.');
+                    } else {
+                        alert(`Failed to restart server: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error restarting server:', error);
+                    alert('Error restarting server. Check console for details.');
+                });
+            }
+        }
+
+        // Shutdown the web server
+        function shutdownWebServer() {
+            if (confirm('Are you sure you want to shutdown the Comparatron web server? The interface will become unavailable in 30 seconds.')) {
+                fetch('/api/shutdown_server', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message + '\n\nThe web server will shut down in 30 seconds. You will need to restart it manually.');
+                    } else {
+                        alert(`Failed to shutdown server: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error shutting down server:', error);
+                    alert('Error shutting down server. Check console for details.');
+                });
+            }
+        }
+
+        // Restart the Raspberry Pi
+        function restartPi() {
+            if (confirm('Are you sure you want to restart the Raspberry Pi? This will take a few minutes to complete.')) {
+                fetch('/api/restart_pi', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message + '\n\nThe Raspberry Pi will restart shortly. You will need to reconnect when it comes back online.');
+                    } else {
+                        alert(`Failed to restart Pi: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error restarting Pi:', error);
+                    alert('Error restarting Pi. Check console for details.');
+                });
+            }
         }
 
         // Load available cameras
