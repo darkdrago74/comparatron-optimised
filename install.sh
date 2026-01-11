@@ -232,10 +232,11 @@ manage_laserweb4() {
             ;;
         2)
             echo -e "${YELLOW}Uninstalling LaserWeb4...${NC}"
+            echo -e "${YELLOW}Please note: This will run the LaserWeb4 uninstaller which may ask for confirmation.${NC}"
+            echo -e "${YELLOW}If prompted, please respond to the questions.${NC}"
             if [ -f "./laserweb4/install_laserweb4.sh" ]; then
                 chmod +x ./laserweb4/install_laserweb4.sh
-                # Run the uninstall option of the LaserWeb4 script
-                echo -e "2\\n" | ./laserweb4/install_laserweb4.sh
+                ./laserweb4/install_laserweb4.sh
             else
                 echo -e "${RED}LaserWeb4 installation script not found!${NC}"
             fi
