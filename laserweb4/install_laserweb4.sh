@@ -260,16 +260,21 @@ fi
 
 # Ask user which version to install
 echo -e "${YELLOW}Which Node.js version would you like to install?${NC}"
-echo -e "${YELLOW}1) Node.js 16 (recommended for LaserWeb4)${NC}"
-echo -e "${YELLOW}2) Node.js 18 (with additional libraries)${NC}"
-read -p "Enter your choice (1 or 2, default is 1): " -n 1 -r
+echo -e "${YELLOW}1) Node.js 18 (recommended, proven to work well with LaserWeb4)${NC}"
+echo -e "${YELLOW}2) Node.js 16 (alternative option)${NC}"
+echo -e "${YELLOW}3) Node.js 12 (older stable version, may improve compatibility)${NC}"
+read -p "Enter your choice (1-3, default is 1): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[2]$ ]]; then
-    NODE_VERSION_CHOICE="18"
-    echo -e "${GREEN}Selected Node.js 18${NC}"
-else
     NODE_VERSION_CHOICE="16"
     echo -e "${GREEN}Selected Node.js 16${NC}"
+elif [[ $REPLY =~ ^[3]$ ]]; then
+    NODE_VERSION_CHOICE="12"
+    echo -e "${GREEN}Selected Node.js 12${NC}"
+    echo -e "${YELLOW}Note: Node.js 12 is end-of-life but may provide better compatibility with older LaserWeb4 versions${NC}"
+else
+    NODE_VERSION_CHOICE="18"
+    echo -e "${GREEN}Selected Node.js 18${NC}"
 fi
 
 # If Node.js is already installed, ask if user wants to reinstall
@@ -299,8 +304,16 @@ if [ "$CURRENT_NODE_VERSION" != "none" ]; then
         echo -e "${YELLOW}Installing Node.js $NODE_VERSION_CHOICE using Nodesource setup script...${NC}"
         if command -v curl &> /dev/null; then
             if command -v sudo &> /dev/null; then
-                curl -fsSL https://deb.nodesource.com/setup_$NODE_VERSION_CHOICE.x | sudo -E bash -
-                sudo apt-get install -y nodejs
+                # For Node.js 12, we need to handle it differently as it's EOL
+                if [ "$NODE_VERSION_CHOICE" = "12" ]; then
+                    # Check if we're on a compatible system for Node.js 12
+                    echo -e "${YELLOW}Installing Node.js $NODE_VERSION_CHOICE (end-of-life)${NC}"
+                    curl -fsSL https://deb.nodesource.com/setup_12.x | sudo -E bash -
+                    sudo apt-get install -y nodejs
+                else
+                    curl -fsSL https://deb.nodesource.com/setup_$NODE_VERSION_CHOICE.x | sudo -E bash -
+                    sudo apt-get install -y nodejs
+                fi
                 echo -e "${GREEN}✓ Node.js $NODE_VERSION_CHOICE.x installed${NC}"
             else
                 echo -e "${RED}Error: sudo not available. Cannot install Node.js automatically.${NC}"
@@ -458,6 +471,10 @@ if [ $? -ne 0 ]; then
 fi
 
 echo -e "${GREEN}✓ LaserWeb4 dependencies installed successfully${NC}"
+
+# Install npm-run-all which is required for LaserWeb4 to start properly
+echo -e "${YELLOW}Installing npm-run-all which is required for LaserWeb4 to start properly...${NC}"
+npm install --save-dev npm-run-all || echo -e "${YELLOW}Warning: Could not install npm-run-all. This may cause startup issues.${NC}"
 
 # Build LaserWeb for production (only if build script exists)
 echo -e "${YELLOW}Checking for build scripts in LaserWeb4...${NC}"
@@ -630,4 +647,7 @@ echo -e "${GREEN}${NC}"
 echo -e "${GREEN}Note: After adding to dialout group, log out and log back in for camera/serial access.${NC}"
 
 echo -e "${GREEN}Node.js version used: $NODE_VERSION_CHOICE${NC}"
+if [ "$NODE_VERSION_CHOICE" = "12" ]; then
+    echo -e "${YELLOW}Note: Node.js 12 is end-of-life but may provide better compatibility with older LaserWeb4 versions${NC}"
+fi
 echo -e "${GREEN}Additional libraries installed: libusb-1.0-0-dev libudev-dev${NC}"
