@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Simplified Comparatron and LaserWeb4 Installation Suite
-# Streamlined installation with automatic system-wide setup and integrated management
+# Comparatron Complete Installation Script
+# Simplified version with streamlined menu
 
 # Colors for output
 RED='\033[0;31m'
@@ -37,12 +37,160 @@ manage_comparatron() {
     case $comp_choice in
         1)
             echo -e "${YELLOW}Installing Comparatron...${NC}"
-            # Run the Comparatron installation script
-            if [ -f "./dependencies/install_dependencies_universal.sh" ]; then
-                ./dependencies/install_dependencies_universal.sh
+            # Run the actual Comparatron installation process
+            # This replicates the original installation logic
+            echo -e "${YELLOW}Checking prerequisites...${NC}"
+
+            # Check if git is installed
+            if ! command -v git &> /dev/null; then
+                echo -e "${RED}Git is not installed. Installing...${NC}"
+                if command -v sudo &> /dev/null; then
+                    if command -v dnf &> /dev/null; then
+                        sudo dnf install -y git
+                    elif command -v apt-get &> /dev/null; then
+                        sudo apt update && sudo apt install -y git
+                    else
+                        echo -e "${RED}Cannot install git automatically. Please install git manually.${NC}"
+                        read -p "Press Enter to continue anyway..."
+                        return
+                    fi
+                else
+                    echo -e "${RED}Cannot install git without sudo. Please install git manually.${NC}"
+                    read -p "Press Enter to continue anyway..."
+                    return
+                fi
             else
-                echo -e "${RED}Comparatron installation script not found!${NC}"
+                echo -e "${GREEN}✓ Git is installed${NC}"
             fi
+
+            # Check if Python 3 is installed
+            if ! command -v python3 &> /dev/null; then
+                echo -e "${RED}Python 3 is not installed. This is required for Comparatron.${NC}"
+                if command -v sudo &> /dev/null; then
+                    if command -v dnf &> /dev/null; then
+                        sudo dnf install -y python3 python3-pip
+                    elif command -v apt-get &> /dev/null; then
+                        sudo apt update && sudo apt install -y python3 python3-pip
+                    else
+                        echo -e "${RED}Cannot install Python automatically. Please install Python 3 manually.${NC}"
+                        read -p "Press Enter to continue anyway..."
+                        return
+                    fi
+                else
+                    echo -e "${RED}Cannot install Python without sudo. Please install Python 3 manually.${NC}"
+                    read -p "Press Enter to continue anyway..."
+                    return
+                fi
+            else
+                echo -e "${GREEN}✓ Python 3 is installed${NC}"
+            fi
+
+            # Check if pip3 is available
+            if ! command -v pip3 &> /dev/null; then
+                echo -e "${RED}pip3 is not installed. Installing...${NC}"
+                if command -v sudo & > /dev/null; then
+                    if command -v dnf &> /dev/null; then
+                        sudo dnf install -y python3-pip
+                    elif command -v apt-get &> /dev/null; then
+                        sudo apt install -y python3-pip
+                    else
+                        echo -e "${RED}Cannot install pip automatically.${NC}"
+                        read -p "Press Enter to continue anyway..."
+                        return
+                    fi
+                fi
+            else
+                echo -e "${GREEN}✓ pip3 is installed${NC}"
+            fi
+
+            # Install required Python packages
+            echo -e "${YELLOW}Installing required Python packages...${NC}"
+            REQUIRED_PACKAGES="flask numpy opencv-python-headless Pillow pyserial ezdxf"
+            for package in $REQUIRED_PACKAGES; do
+                if python3 -c "import $(echo $package | sed 's/opencv-python-headless/cv2/' | sed 's/pyserial/serial/')"; then
+                    echo -e "${GREEN}✓ $package already installed${NC}"
+                else
+                    echo -e "${YELLOW}Installing $package...${NC}"
+                    if pip3 install --break-system-packages "$package" 2>/dev/null || pip3 install "$package"; then
+                        echo -e "${GREEN}✓ $package installed successfully${NC}"
+                    else
+                        echo -e "${RED}✗ Failed to install $package${NC}"
+                    fi
+                fi
+            done
+
+            # Create system-wide command
+            echo -e "${YELLOW}Creating system-wide command...${NC}"
+            if command -v sudo &> /dev/null; then
+                sudo ln -sf "$(pwd)/comparatron" /usr/local/bin/comparatron 2>/dev/null || \
+                sudo cp "$(pwd)/comparatron" /usr/local/bin/comparatron 2>/dev/null || \
+                echo -e "${YELLOW}Could not create system-wide command. You can run Comparatron with './comparatron'${NC}"
+            else
+                echo -e "${YELLOW}Sudo not available, skipping system-wide command creation${NC}"
+            fi
+
+            # Set up systemd service for auto-start
+            echo -e "${YELLOW}Setting up systemd service for auto-start...${NC}"
+            if command -v sudo &> /dev/null; then
+                PROJECT_ROOT="$(pwd)"
+                SERVICE_FILE="/etc/systemd/system/comparatron.service"
+                
+                SERVICE_CONTENT="[Unit]
+Description=Comparatron Flask GUI
+After=network.target multi-user.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=$USER
+Group=$USER
+WorkingDirectory=$PROJECT_ROOT
+Environment=PATH=/usr/bin
+Environment=PYTHONPATH=$PROJECT_ROOT
+ExecStart=/usr/bin/python3 $PROJECT_ROOT/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target"
+
+                echo "$SERVICE_CONTENT" | sudo tee "$SERVICE_FILE" 2>/dev/null
+                sudo systemctl daemon-reload 2>/dev/null
+                echo -e "${GREEN}Comparatron systemd service created${NC}"
+                
+                # Ask user if they want to enable auto-start
+                read -p "Do you want to enable Comparatron to start automatically on boot? (y/N): " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    sudo systemctl enable comparatron.service 2>/dev/null
+                    sudo systemctl start comparatron.service 2>/dev/null
+                    echo -e "${GREEN}Comparatron service enabled to start on boot${NC}"
+                else
+                    echo -e "${YELLOW}Auto-start service created but not enabled.${NC}"
+                fi
+            else
+                echo -e "${YELLOW}Sudo not available, skipping systemd service setup${NC}"
+            fi
+
+            # Add user to dialout group for serial access
+            if command -v sudo &> /dev/null; then
+                sudo usermod -a -G dialout $USER 2>/dev/null
+                echo -e "${GREEN}User added to dialout group for serial port access${NC}"
+            fi
+
+            # Add user to video group for camera access
+            if command -v sudo &> /dev/null; then
+                sudo usermod -a -G video $USER 2>/dev/null
+                echo -e "${GREEN}User added to video group for camera access${NC}"
+            fi
+
+            echo -e "${GREEN}=== Comparatron Installation Completed ===${NC}"
+            echo -e "${GREEN}To start Comparatron:${NC}"
+            echo -e "${GREEN}  - Run: ./comparatron${NC}"
+            echo -e "${GREEN}  - Or access the web interface at: http://localhost:5001${NC}"
+            echo -e "${YELLOW}Note: Log out and log back in for group changes to take effect${NC}"
             ;;
         2)
             echo -e "${YELLOW}Uninstalling Comparatron...${NC}"
