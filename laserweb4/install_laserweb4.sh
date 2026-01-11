@@ -472,9 +472,29 @@ fi
 
 echo -e "${GREEN}✓ LaserWeb4 dependencies installed successfully${NC}"
 
-# Install npm-run-all and webpack-dev-server which are required for LaserWeb4 to start properly
-echo -e "${YELLOW}Installing npm-run-all and webpack-dev-server which are required for LaserWeb4 to start properly...${NC}"
-npm install --save-dev npm-run-all webpack-dev-server || echo -e "${YELLOW}Warning: Could not install development dependencies. This may cause startup issues.${NC}"
+# Install specific versions of development dependencies that are compatible with LaserWeb4
+echo -e "${YELLOW}Installing compatible versions of development dependencies for LaserWeb4...${NC}"
+
+# Install specific compatible versions to avoid CLI option conflicts
+npm install --save-dev npm-run-all webpack-dev-server@^3.11.3 webpack-cli@^4.10.0 || {
+    echo -e "${YELLOW}Trying alternative installation with latest compatible versions...${NC}"
+    npm install --save-dev npm-run-all webpack-dev-server webpack-cli
+}
+
+# Modify package.json to remove deprecated --colors option
+if [ -f "package.json" ]; then
+    echo -e "${YELLOW}Updating package.json to remove deprecated webpack options...${NC}"
+    # Create a temporary file with the updated content
+    TEMP_FILE=$(mktemp)
+    # Use sed to remove the --colors option from the start-app script
+    sed 's/--colors//g' package.json > "$TEMP_FILE" && mv "$TEMP_FILE" package.json
+    # Also remove --progress if it's causing issues
+    TEMP_FILE=$(mktemp)
+    sed 's/--progress//g' package.json > "$TEMP_FILE" && mv "$TEMP_FILE" package.json
+    # Clean up any extra spaces
+    TEMP_FILE=$(mktemp)
+    sed 's/  */ /g' package.json > "$TEMP_FILE" && mv "$TEMP_FILE" package.json
+fi
 
 # Build LaserWeb for production (only if build script exists)
 echo -e "${YELLOW}Checking for build scripts in LaserWeb4...${NC}"
