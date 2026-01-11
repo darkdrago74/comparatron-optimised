@@ -472,9 +472,9 @@ fi
 
 echo -e "${GREEN}✓ LaserWeb4 dependencies installed successfully${NC}"
 
-# Install npm-run-all which is required for LaserWeb4 to start properly
-echo -e "${YELLOW}Installing npm-run-all which is required for LaserWeb4 to start properly...${NC}"
-npm install --save-dev npm-run-all || echo -e "${YELLOW}Warning: Could not install npm-run-all. This may cause startup issues.${NC}"
+# Install npm-run-all and webpack-dev-server which are required for LaserWeb4 to start properly
+echo -e "${YELLOW}Installing npm-run-all and webpack-dev-server which are required for LaserWeb4 to start properly...${NC}"
+npm install --save-dev npm-run-all webpack-dev-server || echo -e "${YELLOW}Warning: Could not install development dependencies. This may cause startup issues.${NC}"
 
 # Build LaserWeb for production (only if build script exists)
 echo -e "${YELLOW}Checking for build scripts in LaserWeb4...${NC}"
@@ -548,24 +548,58 @@ echo -e "${GREEN}Created start script at: $START_SCRIPT${NC}"
 
 # Create a combined start script that starts both lw.comm-server and LaserWeb4
 COMBINED_START_SCRIPT="$HOME/start_laserweb_combined.sh"
-cat > "$COMBINED_START_SCRIPT" << EOF
+cat > "$COMBINED_START_SCRIPT" << 'EOF'
 #!/bin/bash
 # Start lw.comm-server first
 echo "Starting lw.comm-server..."
 cd $HOME/lw.comm-server
 node server &
-LWCOMM_PID=\$!
+LWCOMM_PID=$!
 
 # Wait a moment for lw.comm-server to start
+sleep 5
+
+# Verify lw.comm-server is running
+if ps -p $LWCOMM_PID > /dev/null; then
+    echo "lw.comm-server started successfully (PID: $LWCOMM_PID)"
+else
+    echo "ERROR: lw.comm-server failed to start"
+    exit 1
+fi
+
+# Wait a bit more for lw.comm-server to fully initialize
 sleep 3
 
-# Start LaserWeb4
+# Start LaserWeb4 (only the app part, not the server part that conflicts with lw.comm-server)
 echo "Starting LaserWeb4..."
 cd $HOME/LaserWeb4
-npm start
+
+# Check if we should run in development mode or production mode
+if [ -f "package.json" ]; then
+    # Check if the start script in package.json is trying to run both app and server
+    # If it's trying to run both, we'll run just the app part since lw.comm-server is already running
+    if grep -q "start-server" package.json; then
+        # Run only the app part to avoid conflicts
+        echo "Running LaserWeb4 in app-only mode (to avoid conflicts with lw.comm-server)"
+        npm run start-app
+    else
+        # Just run the standard start
+        npm start
+    fi
+else
+    # Fallback: try to run directly
+    if [ -f "dist/server.js" ]; then
+        node dist/server.js
+    elif [ -f "server.js" ]; then
+        node server.js
+    else
+        echo "LaserWeb4: Attempting to start with fallback method..."
+        npm start
+    fi
+fi
 
 # Clean up background processes when script exits
-trap "kill \$LWCOMM_PID 2>/dev/null; exit" INT TERM EXIT
+trap "kill $LWCOMM_PID 2>/dev/null; exit" INT TERM EXIT
 EOF
 chmod +x "$COMBINED_START_SCRIPT"
 echo -e "${GREEN}Created combined start script at: $COMBINED_START_SCRIPT${NC}"
