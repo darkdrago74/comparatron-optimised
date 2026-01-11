@@ -225,7 +225,7 @@ manage_laserweb4() {
             echo -e "${YELLOW}Installing LaserWeb4...${NC}"
             if [ -f "./laserweb4/install_laserweb4.sh" ]; then
                 chmod +x ./laserweb4/install_laserweb4.sh
-                ./laserweb4/install_laserweb4.sh
+                echo -e "1\\n" | ./laserweb4/install_laserweb4.sh
             else
                 echo -e "${RED}LaserWeb4 installation script not found!${NC}"
             fi
