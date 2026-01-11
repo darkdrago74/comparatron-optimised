@@ -496,6 +496,67 @@ class ComparatronFlaskGUI:
             except Exception as e:
                 return jsonify({'success': False, 'message': str(e)}), 500
 
+        @self.app.route('/api/laserweb_status', methods=['GET'])
+        def laserweb_status():
+            """Check the status of the LaserWeb service"""
+            import subprocess
+
+            try:
+                # Check if LaserWeb service exists and its status
+                result = subprocess.run(['systemctl', 'is-active', 'laserweb.service'],
+                                      capture_output=True, text=True)
+
+                status = result.stdout.strip()
+
+                # Also check if the service file exists
+                service_exists = subprocess.run(['test', '-f', '/etc/systemd/system/laserweb.service'],
+                                              capture_output=True).returncode == 0
+
+                return jsonify({
+                    'success': True,
+                    'status': status if status else 'unknown',
+                    'service_exists': service_exists,
+                    'message': f'LaserWeb service status: {status}'
+                })
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)}), 500
+
+        @self.app.route('/api/control_laserweb', methods=['POST'])
+        def control_laserweb():
+            """Start, stop, or restart the LaserWeb service"""
+            import subprocess
+            import os
+
+            data = request.json
+            action = data.get('action', 'status')  # start, stop, restart, status
+
+            if action not in ['start', 'stop', 'restart', 'status']:
+                return jsonify({'success': False, 'message': 'Invalid action. Use start, stop, restart, or status'}), 400
+
+            try:
+                # Check if user has sudo access
+                if os.getenv('SUDO_USER') is None:
+                    # Try to run with sudo
+                    result = subprocess.run(['sudo', 'systemctl', action, 'laserweb.service'],
+                                          capture_output=True, text=True)
+                else:
+                    # Already running as sudo/root
+                    result = subprocess.run(['systemctl', action, 'laserweb.service'],
+                                          capture_output=True, text=True)
+
+                if result.returncode == 0:
+                    return jsonify({
+                        'success': True,
+                        'message': f'LaserWeb service {action} command executed successfully'
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'message': f'Failed to {action} LaserWeb service: {result.stderr}'
+                    }), 500
+            except Exception as e:
+                return jsonify({'success': False, 'message': str(e)}), 500
+
         @self.app.route('/api/param_info/<param_num>', methods=['GET'])
         def get_param_info(param_num):
             """Get detailed information about a specific GRBL parameter"""
