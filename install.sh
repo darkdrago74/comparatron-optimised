@@ -223,9 +223,10 @@ manage_laserweb4() {
     case $laser_choice in
         1)
             echo -e "${YELLOW}Installing LaserWeb4...${NC}"
+            echo -e "${YELLOW}Please note: This will run the LaserWeb4 installer which will ask for your Node.js version preference.${NC}"
             if [ -f "./laserweb4/install_laserweb4.sh" ]; then
                 chmod +x ./laserweb4/install_laserweb4.sh
-                echo -e "1\\n" | ./laserweb4/install_laserweb4.sh
+                ./laserweb4/install_laserweb4.sh
             else
                 echo -e "${RED}LaserWeb4 installation script not found!${NC}"
             fi
