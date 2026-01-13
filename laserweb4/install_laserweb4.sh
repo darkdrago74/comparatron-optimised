@@ -496,6 +496,18 @@ if [ -f "package.json" ]; then
     sed 's/  */ /g' package.json > "$TEMP_FILE" && mv "$TEMP_FILE" package.json
 fi
 
+# Install additional dependencies required by LaserWeb4
+echo -e "${YELLOW}Installing additional dependencies required by LaserWeb4...${NC}"
+
+# Install snapsvg and other dependencies with legacy peer deps to avoid conflicts
+npm install snapsvg svg.js paper-css --legacy-peer-deps || {
+    echo -e "${YELLOW}Trying to install with forced compatibility...${NC}"
+    # If snapsvg fails, install alternatives that LaserWeb4 might use
+    npm install svg.js paper-css --legacy-peer-deps
+    # Try installing a more compatible vector graphics library
+    npm install @svgdotjs/svg.js || echo -e "${YELLOW}SVG library installation had issues${NC}"
+}
+
 # Install serialport with specific version that's compatible with lw.comm-server
 echo -e "${YELLOW}Installing compatible serialport version for lw.comm-server...${NC}"
 if [ -d "$LWCOMM_DIR" ]; then
@@ -505,6 +517,20 @@ if [ -d "$LWCOMM_DIR" ]; then
         echo -e "${YELLOW}Trying latest serialport version...${NC}"
         npm install serialport
     }
+
+    # Check if we need to patch the API compatibility issue
+    if [ -f "server.js" ]; then
+        echo -e "${YELLOW}Checking for serialport API compatibility in lw.comm-server...${NC}"
+        # Look for the problematic line and update it if needed
+        if grep -q "SerialPort.parsers.Readline" server.js; then
+            echo -e "${YELLOW}Patching serialport API compatibility issue...${NC}"
+            # Create backup
+            cp server.js server.js.backup
+            # Update to use the correct API
+            sed -i 's/SerialPort.parsers.Readline/SerialPort.parsers.readline/g' server.js
+        fi
+    fi
+
     cd "$INSTALL_DIR"  # Return to LaserWeb4 directory
 fi
 
