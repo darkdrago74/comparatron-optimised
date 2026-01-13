@@ -496,6 +496,18 @@ if [ -f "package.json" ]; then
     sed 's/  */ /g' package.json > "$TEMP_FILE" && mv "$TEMP_FILE" package.json
 fi
 
+# Install serialport with specific version that's compatible with lw.comm-server
+echo -e "${YELLOW}Installing compatible serialport version for lw.comm-server...${NC}"
+if [ -d "$LWCOMM_DIR" ]; then
+    cd "$LWCOMM_DIR"
+    # Install a known compatible version of serialport
+    npm install serialport@^9.2.8 || {
+        echo -e "${YELLOW}Trying latest serialport version...${NC}"
+        npm install serialport
+    }
+    cd "$INSTALL_DIR"  # Return to LaserWeb4 directory
+fi
+
 # Build LaserWeb for production (only if build script exists)
 echo -e "${YELLOW}Checking for build scripts in LaserWeb4...${NC}"
 if [ -f "$INSTALL_DIR/package.json" ]; then
